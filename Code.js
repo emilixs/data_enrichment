@@ -1,6 +1,5 @@
 // Constants
 const GEMINI_API_KEY = PropertiesService.getScriptProperties().getProperty('GEMINI_API_KEY');
-const PROCESSING_LIMIT = 5; // Initial limit for testing
 const LOG_SHEET_NAME = 'Logs';
 
 // Logging function
@@ -53,7 +52,7 @@ function processCompanies() {
 
   const ui = SpreadsheetApp.getUi();
   const sheet = SpreadsheetApp.getActiveSheet();
-  const lastRow = Math.min(6, sheet.getLastRow());
+  const lastRow = sheet.getLastRow();
   let processedCount = 0;
 
   logToSheet(`Processing rows 2 to ${lastRow}`, 'INFO');
@@ -68,7 +67,7 @@ function processCompanies() {
       if (companyName) {
         try {
           logToSheet(`Processing company: ${companyName}`, 'INFO', `Row: ${row}`);
-          statusCell.setValue(`Status: Procesare ${companyName}...`);
+          statusCell.setValue(`Status: Procesare ${companyName}... (${row-1}/${lastRow-1})`);
           
           const response = callPerplexityAPI(companyName);
           logToSheet('API response received', 'DEBUG', JSON.stringify(response));
@@ -84,16 +83,24 @@ function processCompanies() {
           processedCount++;
           logToSheet(`Successfully processed ${companyName}`, 'INFO', `Row: ${row}, Data: ${JSON.stringify(data)}`);
           
-          Utilities.sleep(1000);
+          // Add longer delay between requests to avoid rate limits
+          Utilities.sleep(2000);
         } catch (error) {
           logToSheet(`Error processing ${companyName}`, 'ERROR', `Row: ${row}, Error: ${error.message}`);
           logError(error, row);
           
-          if (error.message.includes('rate limit')) {
-            statusCell.setValue("Status: Rate limit atins. Încercați mai târziu.");
-            ui.alert('Rate limit atins', 'Vă rugăm să încercați din nou în câteva minute.', ui.ButtonSet.OK);
-            logToSheet('Rate limit reached', 'WARNING');
-            return;
+          if (error.message.includes('rate limit') || error.message.includes('RESOURCE_EXHAUSTED')) {
+            const waitMinutes = 2;
+            const waitMessage = `Rate limit atins. Așteptăm ${waitMinutes} minute înainte de a continua...`;
+            statusCell.setValue(`Status: ${waitMessage}`);
+            logToSheet('Rate limit reached, waiting...', 'WARNING');
+            
+            // Wait for 2 minutes before continuing
+            Utilities.sleep(waitMinutes * 60 * 1000);
+            
+            // Retry the same row
+            row--;
+            continue;
           }
         }
       }
