@@ -144,7 +144,12 @@ function validateStructure() {
 
 // API interaction
 function callPerplexityAPI(companyName) {
-  const prompt = `Te rog caută și furnizează următoarele informații despre compania "${companyName}":
+  const maxRetries = 3;
+  const retryDelay = 2000; // 2 seconds
+  
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      const prompt = `Te rog caută și furnizează următoarele informații despre compania "${companyName}":
 
 1. Numele oficial complet al companiei
 2. Codul Unic de Înregistrare (CUI)
@@ -162,32 +167,61 @@ Profit: [suma]
 Nr de angajati: [număr]
 Site-ul: [URL]`;
 
-  const options = {
-    'method': 'post',
-    'headers': {
-      'x-goog-api-key': GEMINI_API_KEY,
-      'Content-Type': 'application/json',
-    },
-    'payload': JSON.stringify({
-      'contents': [{
-        'parts': [{
-          'text': prompt
-        }]
-      }],
-      'model': 'gemini-1.5-flash',
-      'generationConfig': {
-        'temperature': 0,
-        'topK': 1,
-        'topP': 1
-      },
-      'tools': {
-        'google_search_retrieval': {}
-      }
-    })
-  };
+      const options = {
+        'method': 'post',
+        'headers': {
+          'x-goog-api-key': GEMINI_API_KEY,
+          'Content-Type': 'application/json',
+        },
+        'payload': JSON.stringify({
+          'contents': [{
+            'parts': [{
+              'text': prompt
+            }]
+          }],
+          'model': 'gemini-1.5-flash',
+          'generationConfig': {
+            'temperature': 0,
+            'topK': 1,
+            'topP': 1
+          },
+          'tools': {
+            'google_search_retrieval': {}
+          }
+        }),
+        'muteHttpExceptions': true
+      };
 
-  const response = UrlFetchApp.fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent', options);
-  return JSON.parse(response.getContentText());
+      const response = UrlFetchApp.fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent', options);
+      const responseCode = response.getResponseCode();
+      const responseText = response.getContentText();
+      const responseData = JSON.parse(responseText);
+
+      // Check for rate limit or quota exceeded
+      if (responseCode === 429) {
+        logToSheet(`Rate limit hit on attempt ${attempt}`, 'WARNING');
+        if (attempt === maxRetries) {
+          throw new Error('Rate limit exceeded after all retries');
+        }
+        // Wait longer with each retry
+        Utilities.sleep(retryDelay * attempt);
+        continue;
+      }
+
+      // Check for other errors
+      if (responseCode !== 200) {
+        throw new Error(`API returned code ${responseCode}: ${responseText}`);
+      }
+
+      return responseData;
+    } catch (error) {
+      if (attempt === maxRetries) {
+        throw error;
+      }
+      logToSheet(`Attempt ${attempt} failed: ${error.message}`, 'WARNING');
+      Utilities.sleep(retryDelay * attempt);
+    }
+  }
 }
 
 // Response parsing
