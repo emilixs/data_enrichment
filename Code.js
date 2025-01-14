@@ -149,7 +149,10 @@ function callPerplexityAPI(companyName) {
   
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
-      const prompt = `Te rog caută și furnizează următoarele informații despre compania "${companyName}":
+      const prompt = `Te rog caută și furnizează următoarele informații despre compania "${companyName}", in paranteza gasesti domeniul de activitate. :
+      Te rog sa alegi cea mai probabil companie romaneasca si sa extragi detaliile pentru ea. 
+      Important:Forteaza ca raspunsul sa fie doar ce este pus in model intre [].
+      Am nevoie de ele mai departe intr-un script. Te rog mult. 
 
 1. Numele oficial complet al companiei
 2. Codul Unic de Înregistrare (CUI)
