@@ -97,7 +97,7 @@ function validateStructure() {
 
 // API interaction
 function callPerplexityAPI(companyName) {
-  const prompt = `Te rog caută și furnizează următoarele informații despre compania "${companyName}":
+  const prompt = `Te rog caută și furnizează următoarele informații despre compania "${companyName}" SRL:
 
 1. Numele oficial complet al companiei
 2. Codul Unic de Înregistrare (CUI)
