@@ -7,6 +7,7 @@ const LOG_SHEET_NAME = 'Logs';
 function logToSheet(message, level = 'INFO', details = '') {
   try {
     let ss = SpreadsheetApp.getActiveSpreadsheet();
+    let activeSheet = ss.getActiveSheet(); // Store the active sheet
     let logSheet = ss.getSheetByName(LOG_SHEET_NAME);
     
     // Create log sheet if it doesn't exist
@@ -14,6 +15,7 @@ function logToSheet(message, level = 'INFO', details = '') {
       logSheet = ss.insertSheet(LOG_SHEET_NAME);
       logSheet.getRange('A1:D1').setValues([['Timestamp', 'Level', 'Message', 'Details']]);
       logSheet.setFrozenRows(1);
+      ss.setActiveSheet(activeSheet); // Switch back to the active sheet
     }
     
     const timestamp = new Date().toISOString();
@@ -25,6 +27,8 @@ function logToSheet(message, level = 'INFO', details = '') {
     if (currentRows > maxRows) {
       logSheet.deleteRows(2, currentRows - maxRows);
     }
+    
+    ss.setActiveSheet(activeSheet); // Ensure we're back on the active sheet
   } catch (error) {
     console.error('Logging failed:', error);
   }
