@@ -97,13 +97,22 @@ function validateStructure() {
 
 // API interaction
 function callPerplexityAPI(companyName) {
-  const prompt = `Gaseste urmatoarele.
-Numele oficial al companiei ${companyName}
-Codul fiscal
-Cifra de afaceri
-Profit
-Nr de angajati
-Site-ul`;
+  const prompt = `Te rog caută și furnizează următoarele informații despre compania "${companyName}":
+
+1. Numele oficial complet al companiei
+2. Codul Unic de Înregistrare (CUI)
+3. Cifra de afaceri pentru anul 2023 (sau cel mai recent an disponibil)
+4. Profitul pentru anul 2023 (sau cel mai recent an disponibil)
+5. Numărul de angajați
+6. Website-ul oficial
+
+Te rog să răspunzi strict cu informațiile găsite, în formatul:
+Numele oficial: [nume]
+Codul fiscal: [CUI]
+Cifra de afaceri: [suma]
+Profit: [suma]
+Nr de angajati: [număr]
+Site-ul: [URL]`;
 
   const options = {
     'method': 'post',
@@ -161,12 +170,12 @@ function parsePerplexityResponse(response) {
 function updateSheet(rowIndex, data) {
   const sheet = SpreadsheetApp.getActiveSheet();
   
-  // Update cells with the extracted data
-  sheet.getRange(rowIndex, 6).setValue(data.website);      // Column F
-  sheet.getRange(rowIndex, 7).setValue(data.revenue);      // Column G
-  sheet.getRange(rowIndex, 8).setValue(data.profit);       // Column H
-  sheet.getRange(rowIndex, 9).setValue(data.employees);    // Column I
-  sheet.getRange(rowIndex, 10).setValue(data.cui);         // Column J - Added CUI
+  // Update cells with the extracted data in the correct order
+  sheet.getRange(rowIndex, 6).setValue(data.cui);         // Column F - CUI
+  sheet.getRange(rowIndex, 7).setValue(data.website);     // Column G - Website
+  sheet.getRange(rowIndex, 8).setValue(data.revenue);     // Column H - Revenue
+  sheet.getRange(rowIndex, 9).setValue(data.profit);      // Column I - Profit
+  sheet.getRange(rowIndex, 10).setValue(data.employees);  // Column J - Employees
 }
 
 // Row processing check
