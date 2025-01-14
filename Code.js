@@ -153,7 +153,7 @@ function callPerplexityAPI(companyName) {
 5. Numărul de angajați
 6. Website-ul oficial
 
-Caută informațiile pe listafirme.ro și alte surse oficiale românești.
+Caută informațiile pe listafirme.ro și alte surse oficiale românești, te rog sa te bazezi pe informatiile care le-ai retinut la ultima actualizare. 
 Răspunde strict cu informațiile găsite, în formatul:
 Numele oficial: [nume]
 Codul fiscal: [CUI]
