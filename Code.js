@@ -121,7 +121,7 @@ Te rog să răspunzi strict cu informațiile găsite, în formatul:
       'Content-Type': 'application/json',
     },
     'payload': JSON.stringify({
-      'model': 'llama-3.1-sonar-large-128k-online',
+      'model': 'llama-3.1-sonar-huge-128k-online',
       'messages': [{
         'role': 'user',
         'content': prompt
