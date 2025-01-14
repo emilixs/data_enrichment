@@ -22,7 +22,7 @@ function processCompanies() {
   let processedCount = 0;
 
   // Add status cell
-  const statusCell = sheet.getRange("J1");
+  const statusCell = sheet.getRange("K1");
   statusCell.setValue("Status: În procesare...");
 
   for (let row = 2; row <= lastRow; row++) {
