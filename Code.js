@@ -283,6 +283,13 @@ function logError(error, rowIndex) {
   logToSheet(errorMessage, 'ERROR');
   
   const sheet = SpreadsheetApp.getActiveSheet();
+  const errorDetails = error.message.includes('code') ? error.message : 'Error: ' + error.message;
+  
+  // Fill all cells in the row with the error message
   const range = sheet.getRange(rowIndex, 6, 1, 5);
-  range.setValue('Failed');
+  const values = Array(5).fill([errorDetails]);
+  range.setValues([Array(5).fill(errorDetails)]);
+  
+  // Make error text red
+  range.setFontColor('red');
 }
