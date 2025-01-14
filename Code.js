@@ -107,12 +107,12 @@ function callPerplexityAPI(companyName) {
 6. Website-ul oficial
 
 Te rog să răspunzi strict cu informațiile găsite, în formatul:
-Numele oficial: [nume]
-Codul fiscal: [CUI]
-Cifra de afaceri: [suma]
-Profit: [suma]
-Nr de angajati: [număr]
-Site-ul: [URL]`;
+[nume oficial]
+[Cod fiscal]
+[Cifra afaceri]
+[Profit]
+[Numar angajati]
+[URL]`;
 
   const options = {
     'method': 'post',
