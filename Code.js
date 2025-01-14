@@ -122,6 +122,7 @@ Te rog să răspunzi strict cu informațiile găsite, în formatul:
     },
     'payload': JSON.stringify({
       'model': 'llama-3.1-sonar-huge-128k-online',
+      'temperature': 0,
       'messages': [{
         'role': 'user',
         'content': prompt
