@@ -112,7 +112,7 @@ Site-ul`;
       'Content-Type': 'application/json',
     },
     'payload': JSON.stringify({
-      'model': 'pplx-7b-online',
+      'model': 'mixtral-8x7b-instruct',
       'messages': [{
         'role': 'user',
         'content': prompt
