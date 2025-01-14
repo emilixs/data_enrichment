@@ -180,14 +180,9 @@ Site-ul: [URL]`;
         'topK': 1,
         'topP': 1
       },
-      'tools': [{
-        'google_search_retrieval': {
-          'dynamic_retrieval_config': {
-            'mode': 'unspecified',
-            'dynamic_threshold': 0.06
-          }
-        }
-      }]
+      'tools': {
+        'google_search_retrieval': {}
+      }
     })
   };
 
