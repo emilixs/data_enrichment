@@ -16,16 +16,28 @@ function processCompanies() {
     return;
   }
 
+  const ui = SpreadsheetApp.getUi();
   const sheet = SpreadsheetApp.getActiveSheet();
-  const lastRow = sheet.getLastRow();
+  const lastRow = Math.min(6, sheet.getLastRow()); // Process only rows 2-6 (5 companies)
   let processedCount = 0;
 
-  for (let row = 2; row <= lastRow && processedCount < PROCESSING_LIMIT; row++) {
+  // Add status cell
+  const statusCell = sheet.getRange("J1");
+  statusCell.setValue("Status: În procesare...");
+
+  for (let row = 2; row <= lastRow; row++) {
     if (!isRowProcessed(row)) {
       const companyName = sheet.getRange(row, 2).getValue(); // Column B
       if (companyName) {
         try {
+          statusCell.setValue(`Status: Procesare ${companyName}...`);
           const response = callPerplexityAPI(companyName);
+          
+          // Check for API errors
+          if (response.error) {
+            throw new Error(`API Error: ${response.error.message || 'Unknown error'}`);
+          }
+          
           const data = parsePerplexityResponse(response);
           updateSheet(row, data);
           processedCount++;
@@ -33,23 +45,33 @@ function processCompanies() {
           Utilities.sleep(1000);
         } catch (error) {
           logError(error, row);
+          
+          // Handle rate limiting
+          if (error.message.includes('rate limit')) {
+            statusCell.setValue("Status: Rate limit atins. Încercați mai târziu.");
+            ui.alert('Rate limit atins', 'Vă rugăm să încercați din nou în câteva minute.', ui.ButtonSet.OK);
+            return;
+          }
         }
       }
     }
   }
+  
+  statusCell.setValue(`Status: Procesare completă. ${processedCount} companii actualizate.`);
 }
 
 // Validation function
 function validateStructure() {
   const sheet = SpreadsheetApp.getActiveSheet();
-  const headers = sheet.getRange("B1:I1").getValues()[0];
+  const headers = sheet.getRange("B1:J1").getValues()[0];
   
   const requiredHeaders = [
     "Companie",
     "Website",
     "Cifra afaceri (2023)",
     "Profit",
-    "Nr. angajati"
+    "Nr. angajati",
+    "CUI"
   ];
 
   const missingHeaders = requiredHeaders.filter((header, index) => 
@@ -111,7 +133,8 @@ function parsePerplexityResponse(response) {
     website: 'N/A',
     revenue: 'N/A',
     profit: 'N/A',
-    employees: 'N/A'
+    employees: 'N/A',
+    cui: 'N/A'  // Added CUI field
   };
 
   // Extract information using regex patterns
@@ -119,7 +142,8 @@ function parsePerplexityResponse(response) {
     website: /Site-ul:?\s*([^\n]+)/i,
     revenue: /Cifra de afaceri:?\s*([^\n]+)/i,
     profit: /Profit:?\s*([^\n]+)/i,
-    employees: /Nr de angajati:?\s*([^\n]+)/i
+    employees: /Nr de angajati:?\s*([^\n]+)/i,
+    cui: /Codul fiscal:?\s*([^\n]+)/i  // Added CUI pattern
   };
 
   // Update data object with found values
@@ -142,12 +166,13 @@ function updateSheet(rowIndex, data) {
   sheet.getRange(rowIndex, 7).setValue(data.revenue);      // Column G
   sheet.getRange(rowIndex, 8).setValue(data.profit);       // Column H
   sheet.getRange(rowIndex, 9).setValue(data.employees);    // Column I
+  sheet.getRange(rowIndex, 10).setValue(data.cui);         // Column J - Added CUI
 }
 
 // Row processing check
 function isRowProcessed(rowIndex) {
   const sheet = SpreadsheetApp.getActiveSheet();
-  const row = sheet.getRange(rowIndex, 6, 1, 4).getValues()[0]; // Check columns F to I
+  const row = sheet.getRange(rowIndex, 6, 1, 5).getValues()[0];
   return row.some(cell => cell !== '');
 }
 
@@ -155,6 +180,6 @@ function isRowProcessed(rowIndex) {
 function logError(error, rowIndex) {
   console.error(`Error processing row ${rowIndex}: ${error.message}`);
   const sheet = SpreadsheetApp.getActiveSheet();
-  const range = sheet.getRange(rowIndex, 6, 1, 4); // Columns F to I
+  const range = sheet.getRange(rowIndex, 6, 1, 5);
   range.setValue('Failed');
 }
