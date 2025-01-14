@@ -112,7 +112,7 @@ Site-ul`;
       'Content-Type': 'application/json',
     },
     'payload': JSON.stringify({
-      'model': 'mixtral-8x7b-instruct',
+      'model': 'llama-3.1-sonar-large-128k-online',
       'messages': [{
         'role': 'user',
         'content': prompt
