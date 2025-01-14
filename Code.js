@@ -153,7 +153,7 @@ function callPerplexityAPI(companyName) {
 5. Numărul de angajați
 6. Website-ul oficial
 
-Caută informațiile pe listafirme.ro și alte surse oficiale românești, te rog sa te bazezi pe informatiile care le-ai retinut la ultima actualizare. 
+Caută informațiile pe listafirme.ro și alte surse oficiale românești.
 Răspunde strict cu informațiile găsite, în formatul:
 Numele oficial: [nume]
 Codul fiscal: [CUI]
@@ -179,7 +179,15 @@ Site-ul: [URL]`;
         'temperature': 0,
         'topK': 1,
         'topP': 1
-      }
+      },
+      'tools': [{
+        'google_search_retrieval': {
+          'dynamic_retrieval_config': {
+            'mode': 'unspecified',
+            'dynamic_threshold': 0.06
+          }
+        }
+      }]
     })
   };
 
