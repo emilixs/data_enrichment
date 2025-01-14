@@ -1,6 +1,34 @@
 // Constants
 const GEMINI_API_KEY = PropertiesService.getScriptProperties().getProperty('GEMINI_API_KEY');
 const PROCESSING_LIMIT = 5; // Initial limit for testing
+const LOG_SHEET_NAME = 'Logs';
+
+// Logging function
+function logToSheet(message, level = 'INFO', details = '') {
+  try {
+    let ss = SpreadsheetApp.getActiveSpreadsheet();
+    let logSheet = ss.getSheetByName(LOG_SHEET_NAME);
+    
+    // Create log sheet if it doesn't exist
+    if (!logSheet) {
+      logSheet = ss.insertSheet(LOG_SHEET_NAME);
+      logSheet.getRange('A1:D1').setValues([['Timestamp', 'Level', 'Message', 'Details']]);
+      logSheet.setFrozenRows(1);
+    }
+    
+    const timestamp = new Date().toISOString();
+    logSheet.appendRow([timestamp, level, message, details]);
+    
+    // Keep only last 1000 logs
+    const maxRows = 1000;
+    const currentRows = logSheet.getLastRow();
+    if (currentRows > maxRows) {
+      logSheet.deleteRows(2, currentRows - maxRows);
+    }
+  } catch (error) {
+    console.error('Logging failed:', error);
+  }
+}
 
 // Menu creation
 function onOpen() {
@@ -12,14 +40,19 @@ function onOpen() {
 
 // Main processing function
 function processCompanies() {
+  logToSheet('Starting company processing');
+  
   if (!validateStructure()) {
+    logToSheet('Validation failed', 'ERROR');
     return;
   }
 
   const ui = SpreadsheetApp.getUi();
   const sheet = SpreadsheetApp.getActiveSheet();
-  const lastRow = Math.min(6, sheet.getLastRow()); // Process only rows 2-6 (5 companies)
+  const lastRow = Math.min(6, sheet.getLastRow());
   let processedCount = 0;
+
+  logToSheet(`Processing rows 2 to ${lastRow}`, 'INFO');
 
   // Add status cell
   const statusCell = sheet.getRange("K1");
@@ -27,37 +60,47 @@ function processCompanies() {
 
   for (let row = 2; row <= lastRow; row++) {
     if (!isRowProcessed(row)) {
-      const companyName = sheet.getRange(row, 2).getValue(); // Column B
+      const companyName = sheet.getRange(row, 2).getValue();
       if (companyName) {
         try {
+          logToSheet(`Processing company: ${companyName}`, 'INFO', `Row: ${row}`);
           statusCell.setValue(`Status: Procesare ${companyName}...`);
-          const response = callPerplexityAPI(companyName);
           
-          // Check for API errors
+          const response = callPerplexityAPI(companyName);
+          logToSheet('API response received', 'DEBUG', JSON.stringify(response));
+          
           if (response.error) {
             throw new Error(`API Error: ${response.error.message || 'Unknown error'}`);
           }
           
           const data = parsePerplexityResponse(response);
+          logToSheet('Parsed response', 'DEBUG', JSON.stringify(data));
+          
           updateSheet(row, data);
           processedCount++;
-          // Add small delay to avoid rate limiting
+          logToSheet(`Successfully processed ${companyName}`, 'INFO', `Row: ${row}, Data: ${JSON.stringify(data)}`);
+          
           Utilities.sleep(1000);
         } catch (error) {
+          logToSheet(`Error processing ${companyName}`, 'ERROR', `Row: ${row}, Error: ${error.message}`);
           logError(error, row);
           
-          // Handle rate limiting
           if (error.message.includes('rate limit')) {
             statusCell.setValue("Status: Rate limit atins. Încercați mai târziu.");
             ui.alert('Rate limit atins', 'Vă rugăm să încercați din nou în câteva minute.', ui.ButtonSet.OK);
+            logToSheet('Rate limit reached', 'WARNING');
             return;
           }
         }
       }
+    } else {
+      logToSheet(`Skipping processed row ${row}`, 'INFO');
     }
   }
   
-  statusCell.setValue(`Status: Procesare completă. ${processedCount} companii actualizate.`);
+  const finalMessage = `Status: Procesare completă. ${processedCount} companii actualizate.`;
+  statusCell.setValue(finalMessage);
+  logToSheet('Processing completed', 'INFO', `Processed count: ${processedCount}`);
 }
 
 // Validation function
@@ -194,7 +237,10 @@ function isRowProcessed(rowIndex) {
 
 // Error logging
 function logError(error, rowIndex) {
-  console.error(`Error processing row ${rowIndex}: ${error.message}`);
+  const errorMessage = `Error processing row ${rowIndex}: ${error.message}`;
+  console.error(errorMessage);
+  logToSheet(errorMessage, 'ERROR');
+  
   const sheet = SpreadsheetApp.getActiveSheet();
   const range = sheet.getRange(rowIndex, 6, 1, 5);
   range.setValue('Failed');
