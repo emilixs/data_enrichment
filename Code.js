@@ -1,5 +1,5 @@
 // Constants
-const PERPLEXITY_API_KEY = PropertiesService.getScriptProperties().getProperty('PERPLEXITY_API_KEY');
+const GEMINI_API_KEY = PropertiesService.getScriptProperties().getProperty('GEMINI_API_KEY');
 const PROCESSING_LIMIT = 5; // Initial limit for testing
 
 // Menu creation
@@ -85,9 +85,9 @@ function validateStructure() {
     return false;
   }
 
-  if (!PERPLEXITY_API_KEY) {
+  if (!GEMINI_API_KEY) {
     SpreadsheetApp.getUi().alert(
-      'Eroare: API Key-ul Perplexity nu este configurat!'
+      'Eroare: API Key-ul Google Gemini nu este configurat!'
     );
     return false;
   }
@@ -97,7 +97,7 @@ function validateStructure() {
 
 // API interaction
 function callPerplexityAPI(companyName) {
-  const prompt = `Te rog caută și furnizează următoarele informații despre compania, prioritizeaza raspunsurile din listafirme.ro "${companyName}" SRL:
+  const prompt = `Te rog caută și furnizează următoarele informații despre compania "${companyName}":
 
 1. Numele oficial complet al companiei
 2. Codul Unic de Înregistrare (CUI)
@@ -106,37 +106,43 @@ function callPerplexityAPI(companyName) {
 5. Numărul de angajați
 6. Website-ul oficial
 
-Te rog să răspunzi strict cu informațiile găsite, în formatul:
-[nume oficial]
-[Cod fiscal]
-[Cifra afaceri]
-[Profit]
-[Numar angajati]
-[URL]`;
+Caută informațiile pe listafirme.ro și alte surse oficiale românești.
+Răspunde strict cu informațiile găsite, în formatul:
+Numele oficial: [nume]
+Codul fiscal: [CUI]
+Cifra de afaceri: [suma]
+Profit: [suma]
+Nr de angajati: [număr]
+Site-ul: [URL]`;
 
   const options = {
     'method': 'post',
     'headers': {
-      'Authorization': `Bearer ${PERPLEXITY_API_KEY}`,
+      'x-goog-api-key': GEMINI_API_KEY,
       'Content-Type': 'application/json',
     },
     'payload': JSON.stringify({
-      'model': 'llama-3.1-sonar-huge-128k-online',
-      'temperature': 0,
-      'messages': [{
-        'role': 'user',
-        'content': prompt
-      }]
+      'contents': [{
+        'parts': [{
+          'text': prompt
+        }]
+      }],
+      'model': 'gemini-1.5-flash',
+      'generationConfig': {
+        'temperature': 0,
+        'topK': 1,
+        'topP': 1
+      }
     })
   };
 
-  const response = UrlFetchApp.fetch('https://api.perplexity.ai/chat/completions', options);
+  const response = UrlFetchApp.fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent', options);
   return JSON.parse(response.getContentText());
 }
 
 // Response parsing
 function parsePerplexityResponse(response) {
-  const content = response.choices[0].message.content;
+  const content = response.candidates[0].content.parts[0].text;
   
   // Initialize default values
   const data = {
@@ -144,7 +150,7 @@ function parsePerplexityResponse(response) {
     revenue: 'N/A',
     profit: 'N/A',
     employees: 'N/A',
-    cui: 'N/A'  // Added CUI field
+    cui: 'N/A'
   };
 
   // Extract information using regex patterns
@@ -153,7 +159,7 @@ function parsePerplexityResponse(response) {
     revenue: /Cifra de afaceri:?\s*([^\n]+)/i,
     profit: /Profit:?\s*([^\n]+)/i,
     employees: /Nr de angajati:?\s*([^\n]+)/i,
-    cui: /Codul fiscal:?\s*([^\n]+)/i  // Added CUI pattern
+    cui: /Codul fiscal:?\s*([^\n]+)/i
   };
 
   // Update data object with found values
