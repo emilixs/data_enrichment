@@ -10,32 +10,43 @@ const OUTPUT_COLUMNS = {
   STATUS: 'O'
 };
 
-// Logging function
+/**
+ * logToSheet
+ *
+ * Logs a message to a dedicated "Logs" sheet in the active spreadsheet.
+ * If the "Logs" sheet doesn't exist, it will be created along with headers.
+ * The function appends a new row with the current timestamp, log level, message, and extra details.
+ * It also keeps the number of rows within a defined limit (e.g., 1000 rows) to avoid uncontrolled growth.
+ *
+ * @param {string} message - The primary log message.
+ * @param {string} [level="INFO"] - The severity level (e.g., INFO, DEBUG, WARNING, ERROR).
+ * @param {string} [details=""] - Additional details and context for the log.
+ */
 function logToSheet(message, level = 'INFO', details = '') {
   try {
-    let ss = SpreadsheetApp.getActiveSpreadsheet();
-    let activeSheet = ss.getActiveSheet(); // Store the active sheet
-    let logSheet = ss.getSheetByName(LOG_SHEET_NAME);
-    
-    // Create log sheet if it doesn't exist
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const activeSheet = ss.getActiveSheet();
+    let logSheet = ss.getSheetByName('Logs');
+
+    // Create the log sheet if it doesn't exist
     if (!logSheet) {
-      logSheet = ss.insertSheet(LOG_SHEET_NAME);
+      logSheet = ss.insertSheet('Logs');
       logSheet.getRange('A1:D1').setValues([['Timestamp', 'Level', 'Message', 'Details']]);
       logSheet.setFrozenRows(1);
-      ss.setActiveSheet(activeSheet); // Switch back to the active sheet
+      ss.setActiveSheet(activeSheet); // Revert back to the originally active sheet
     }
-    
+
     const timestamp = new Date().toISOString();
     logSheet.appendRow([timestamp, level, message, details]);
-    
-    // Keep only last 1000 logs
+
+    // Keep only the last 1000 log entries
     const maxRows = 1000;
     const currentRows = logSheet.getLastRow();
     if (currentRows > maxRows) {
       logSheet.deleteRows(2, currentRows - maxRows);
     }
-    
-    ss.setActiveSheet(activeSheet); // Ensure we're back on the active sheet
+
+    ss.setActiveSheet(activeSheet); // Ensure we switch back to the active sheet
   } catch (error) {
     console.error('Logging failed:', error);
   }
@@ -220,25 +231,24 @@ PROFIL CANDIDAT:
 
 /**
  * callGeminiAPI
- * 
- * Sends a prompt built from the candidate profile data and the job description to the Gemini API.
- * Retries the call up to a maximum of maxRetries in case of failures or rate limiting.
- * Logs exactly what is sent to the LLM (including the prompt and JSON payload without sensitive details)
- * and what is sent back (the full response from the API).
+ *
+ * Constructs a request prompt and payload combining candidate profile data and job description,
+ * then sends it to the Gemini API. The function implements a retry mechanism to handle API failures,
+ * including rate limiting. The complete request prompt and payload are logged (while avoiding sensitive 
+ * header details), as is the full response from the API.
  *
  * @param {string} profileData - The formatted candidate profile data.
- * @param {string} jobDescription - The configured job description.
+ * @param {string} jobDescription - The job description used to evaluate the candidate.
  * @returns {Object} - The parsed JSON response from the Gemini API.
- * @throws Will throw an error if the maximum number of retries is exceeded.
+ * @throws Will throw an error if the maximum number of retries is exhausted.
  */
 function callGeminiAPI(profileData, jobDescription) {
   const maxRetries = 3;
-  const retryDelay = 2000; // Delay increases with each retry attempt
+  const retryDelay = 2000; // Delay in milliseconds (increases with each retry)
 
-  // Loop to handle retry logic in the event of failures or rate limiting.
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
-      // Construct the prompt for the LLM request.
+      // Construct the prompt to be sent to the API
       const prompt = `${profileData}\n\nJOB DESCRIPTION:\n${jobDescription}\n\nTe rog să evaluezi și să furnizezi următoarele:
 1. Evaluare Tehnică (0-100): Evaluează potrivirea competențelor tehnice cu cerințele job-ului
 2. Evaluare Experiență (0-100): Evaluează relevanța experienței profesionale
@@ -254,10 +264,10 @@ Recomandări:
 - [recomandare 2]
 - [recomandare 3]`;
 
-      // Log the exact prompt being sent to the LLM.
+      // Log the exact prompt that is being sent to the LLM
       logToSheet(`LLM Request Prompt (Attempt ${attempt}): ${prompt}`, 'DEBUG', '');
 
-      // Prepare the payload that will be sent in the API request.
+      // Prepare the payload for the API request
       const payload = {
         'contents': [{
           'parts': [{
@@ -275,31 +285,31 @@ Recomandări:
         }
       };
 
-      // Log the payload details (excluding sensitive header info such as the API key).
+      // Log the constructed payload (excluding sensitive header info)
       logToSheet(`LLM Request Payload (Attempt ${attempt}): ${JSON.stringify(payload)}`, 'DEBUG', '');
 
-      // Configure the HTTP request options for the Gemini API.
+      // Set up the HTTP request options for the Gemini API
       const options = {
-        'method': 'post',
-        'headers': {
+        method: 'post',
+        headers: {
           'x-goog-api-key': GEMINI_API_KEY,
-          'Content-Type': 'application/json',
+          'Content-Type': 'application/json'
         },
-        'payload': JSON.stringify(payload),
-        'muteHttpExceptions': true
+        payload: JSON.stringify(payload),
+        muteHttpExceptions: true
       };
 
-      // Send the request to the Gemini API.
+      // Execute the API request
       const response = UrlFetchApp.fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent', options);
       const responseCode = response.getResponseCode();
       const responseText = response.getContentText();
 
-      // Log exactly what the LLM (Gemini API) sent back.
+      // Log the full API response
       logToSheet(`LLM Response (Attempt ${attempt}): ${responseText}`, 'DEBUG', `Response Code: ${responseCode}`);
 
       const responseData = JSON.parse(responseText);
 
-      // Handle rate limiting (HTTP 429) by retrying the request.
+      // Handle rate limiting by retrying on HTTP 429 response
       if (responseCode === 429) {
         logToSheet(`Rate limit hit on attempt ${attempt}`, 'WARNING');
         if (attempt === maxRetries) throw new Error('RESOURCE_EXHAUSTED');
@@ -307,14 +317,13 @@ Recomandări:
         continue;
       }
 
-      // If any non-successful response is received, throw an error.
+      // Throw an error if the response code is not 200 (OK)
       if (responseCode !== 200) {
         throw new Error(`API returned code ${responseCode}: ${responseText}`);
       }
 
       return responseData;
     } catch (error) {
-      // On the final retry attempt, throw the error.
       if (attempt === maxRetries) throw error;
       logToSheet(`Attempt ${attempt} failed: ${error.message}`, 'WARNING');
       Utilities.sleep(retryDelay * attempt);
