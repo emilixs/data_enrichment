@@ -59,17 +59,29 @@ function configureJobDescription() {
   
   if (!jobDescSheet) {
     jobDescSheet = ss.insertSheet(JOB_DESCRIPTION_SHEET);
-    jobDescSheet.getRange('A1').setValue('Job Description');
+    jobDescSheet.getRange('A1').setValue('Job Description URL');
   }
   
   const response = ui.prompt(
     'Configurare Job Description',
-    'Introduceți descrierea job-ului pentru evaluarea profilelor:',
+    'Introduceți URL-ul Google Doc-ului cu Job Description:',
     ui.ButtonSet.OK_CANCEL);
 
   if (response.getSelectedButton() == ui.Button.OK) {
-    jobDescSheet.getRange('A2').setValue(response.getResponseText());
-    ui.alert('Job Description salvat cu succes!');
+    const docUrl = response.getResponseText();
+    try {
+      // Extract document ID from URL
+      const docId = extractDocId(docUrl);
+      if (!docId) {
+        ui.alert('Error', 'URL invalid. Vă rugăm să furnizați un URL valid de Google Doc.', ui.ButtonSet.OK);
+        return;
+      }
+      
+      jobDescSheet.getRange('A2').setValue(docUrl);
+      ui.alert('Job Description URL salvat cu succes!');
+    } catch (error) {
+      ui.alert('Error', 'Nu s-a putut salva URL-ul: ' + error.message, ui.ButtonSet.OK);
+    }
   }
 }
 
@@ -340,12 +352,47 @@ function isProfileProcessed(rowIndex) {
   return row.some(cell => cell !== '');
 }
 
-// Get Job Description
+// Get Job Description from Google Doc
 function getJobDescription() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const jobDescSheet = ss.getSheetByName(JOB_DESCRIPTION_SHEET);
   if (!jobDescSheet) return null;
-  return jobDescSheet.getRange('A2').getValue();
+  
+  const docUrl = jobDescSheet.getRange('A2').getValue();
+  if (!docUrl) return null;
+  
+  try {
+    const docId = extractDocId(docUrl);
+    if (!docId) return null;
+    
+    // Access the document and get its content
+    const doc = DocumentApp.openById(docId);
+    if (!doc) return null;
+    
+    return doc.getBody().getText();
+  } catch (error) {
+    logToSheet(`Error reading Job Description: ${error.message}`, 'ERROR');
+    return null;
+  }
+}
+
+// Helper function to extract Google Doc ID from URL
+function extractDocId(url) {
+  // Handle different Google Doc URL formats
+  const patterns = [
+    /\/document\/d\/([a-zA-Z0-9-_]+)/,  // Standard format
+    /\/document\/u\/\d+\/d\/([a-zA-Z0-9-_]+)/,  // With user number
+    /^([a-zA-Z0-9-_]+)$/  // Direct ID
+  ];
+  
+  for (const pattern of patterns) {
+    const match = url.match(pattern);
+    if (match && match[1]) {
+      return match[1];
+    }
+  }
+  
+  return null;
 }
 
 // Validation function
