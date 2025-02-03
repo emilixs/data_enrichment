@@ -117,6 +117,9 @@ function onOpen() {
     .addItem('Procesează Profile', 'processProfiles')
     .addItem('Resetare Evaluări', 'resetEvaluations')
     .addToUi();
+    
+  // Set up output column headers if they don't exist
+  setupOutputColumns();
 }
 
 // Job Description Configuration
@@ -529,4 +532,24 @@ function logError(error, rowIndex) {
   
   // Update status column only
   sheet.getRange(rowIndex, OUTPUT_COLUMNS.STATUS.charCodeAt(0) - 64).setValue(errorDetails);
+}
+
+// Add this after the onOpen function
+function setupOutputColumns() {
+  const sheet = SpreadsheetApp.getActiveSheet();
+  const headers = {
+    'AV': 'Evaluare Tehnică',
+    'AW': 'Evaluare Experiență',
+    'AX': 'Scor General',
+    'AY': 'Recomandări',
+    'AZ': 'Status'
+  };
+  
+  // Set each header
+  for (const [col, header] of Object.entries(headers)) {
+    const cell = sheet.getRange(`${col}1`);
+    if (cell.getValue() === '') {
+      cell.setValue(header);
+    }
+  }
 }
