@@ -232,10 +232,9 @@ PROFIL CANDIDAT:
 /**
  * callGeminiAPI
  *
- * Constructs a request prompt and payload combining candidate profile data and job description,
- * then sends it to the Gemini API. The function implements a retry mechanism to handle API failures,
- * including rate limiting. The complete request prompt and payload are logged (while avoiding sensitive 
- * header details), as is the full response from the API.
+ * Constructs a request prompt and payload combining candidate profile data and the job description,
+ * then sends it to the Gemini API. It logs the full prompt and payload sent to the LLM and the complete response.
+ * Implements a retry mechanism in case of API failures or rate limiting.
  *
  * @param {string} profileData - The formatted candidate profile data.
  * @param {string} jobDescription - The job description used to evaluate the candidate.
@@ -244,7 +243,7 @@ PROFIL CANDIDAT:
  */
 function callGeminiAPI(profileData, jobDescription) {
   const maxRetries = 3;
-  const retryDelay = 2000; // Delay in milliseconds (increases with each retry)
+  const retryDelay = 2000; // Delay increases with each retry attempt
 
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
@@ -264,8 +263,8 @@ Recomandări:
 - [recomandare 2]
 - [recomandare 3]`;
 
-      // Log the exact prompt that is being sent to the LLM
-      logToSheet(`LLM Request Prompt (Attempt ${attempt}): ${prompt}`, 'DEBUG', '');
+      // Log the prompt being sent to the LLM
+      logToSheet(`LLM Request Prompt (Attempt ${attempt}):\n${prompt}`, 'DEBUG', '');
 
       // Prepare the payload for the API request
       const payload = {
@@ -285,10 +284,14 @@ Recomandări:
         }
       };
 
-      // Log the constructed payload (excluding sensitive header info)
-      logToSheet(`LLM Request Payload (Attempt ${attempt}): ${JSON.stringify(payload)}`, 'DEBUG', '');
+      // Log the full payload (formatted with indentation for easier reading)
+      logToSheet(
+        `LLM Request Payload (Attempt ${attempt}):\n${JSON.stringify(payload, null, 2)}`, 
+        'DEBUG', 
+        ''
+      );
 
-      // Set up the HTTP request options for the Gemini API
+      // Configure HTTP request options for the Gemini API
       const options = {
         method: 'post',
         headers: {
@@ -299,25 +302,30 @@ Recomandări:
         muteHttpExceptions: true
       };
 
-      // Execute the API request
+      // Send the API request
       const response = UrlFetchApp.fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent', options);
       const responseCode = response.getResponseCode();
       const responseText = response.getContentText();
 
-      // Log the full API response
-      logToSheet(`LLM Response (Attempt ${attempt}): ${responseText}`, 'DEBUG', `Response Code: ${responseCode}`);
+      // Log the complete API response from the LLM
+      logToSheet(
+        `LLM Response (Attempt ${attempt}):\n${responseText}`, 
+        'DEBUG', 
+        `Response Code: ${responseCode}`
+      );
 
+      // Parse the response text to JSON
       const responseData = JSON.parse(responseText);
 
-      // Handle rate limiting by retrying on HTTP 429 response
+      // If the response indicates rate limiting, handle retry logic
       if (responseCode === 429) {
-        logToSheet(`Rate limit hit on attempt ${attempt}`, 'WARNING');
+        logToSheet(`Rate limit hit on attempt ${attempt}.`, 'WARNING');
         if (attempt === maxRetries) throw new Error('RESOURCE_EXHAUSTED');
         Utilities.sleep(retryDelay * attempt);
         continue;
       }
 
-      // Throw an error if the response code is not 200 (OK)
+      // If the response code is not 200 (OK), throw an error
       if (responseCode !== 200) {
         throw new Error(`API returned code ${responseCode}: ${responseText}`);
       }
