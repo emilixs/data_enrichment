@@ -31,13 +31,13 @@ function logToSheet(message, level = 'INFO', details = '') {
     // Create the log sheet if it doesn't exist
     if (!logSheet) {
       logSheet = ss.insertSheet('Logs');
-      logSheet.getRange('A1:D1').setValues([['Timestamp', 'Level', 'Message', 'Details']]);
+      logSheet.getRange('A1:G1').setValues([['Timestamp', 'Level', 'Message', 'Details', 'Prompt', 'Response', 'Conclusions']]);
       logSheet.setFrozenRows(1);
       ss.setActiveSheet(activeSheet); // Revert back to the originally active sheet
     }
 
     const timestamp = new Date().toISOString();
-    logSheet.appendRow([timestamp, level, message, details]);
+    logSheet.appendRow([timestamp, level, message, details, '', '', '']);
 
     // Keep only the last 1000 log entries
     const maxRows = 1000;
@@ -49,6 +49,63 @@ function logToSheet(message, level = 'INFO', details = '') {
     ss.setActiveSheet(activeSheet); // Ensure we switch back to the active sheet
   } catch (error) {
     console.error('Logging failed:', error);
+  }
+}
+
+/**
+ * logLLMInteraction
+ *
+ * Specialized logging function for LLM (Language Model) interactions.
+ * Logs the prompt sent to the LLM, the response received, and any conclusions drawn.
+ *
+ * @param {string} prompt - The prompt sent to the LLM
+ * @param {string} response - The response received from the LLM
+ * @param {string} conclusions - Any conclusions or processed results from the response
+ * @param {string} [level="INFO"] - Log level
+ * @param {string} [message="LLM Interaction"] - Additional message for context
+ */
+function logLLMInteraction(prompt, response, conclusions, level = 'INFO', message = 'LLM Interaction') {
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const activeSheet = ss.getActiveSheet();
+    let logSheet = ss.getSheetByName('Logs');
+
+    // Create log sheet if it doesn't exist
+    if (!logSheet) {
+      logSheet = ss.insertSheet('Logs');
+      logSheet.getRange('A1:G1').setValues([['Timestamp', 'Level', 'Message', 'Details', 'Prompt', 'Response', 'Conclusions']]);
+      logSheet.setFrozenRows(1);
+      ss.setActiveSheet(activeSheet);
+    }
+
+    const timestamp = new Date().toISOString();
+    logSheet.appendRow([
+      timestamp,
+      level,
+      message,
+      '',
+      prompt,
+      response,
+      conclusions
+    ]);
+
+    // Format the cells for better readability
+    const lastRow = logSheet.getLastRow();
+    logSheet.getRange(lastRow, 5, 1, 3).setWrap(true); // Enable text wrapping for prompt, response, and conclusions
+    
+    // Adjust row height to fit content
+    logSheet.setRowHeight(lastRow, -1); // Auto-resize row height
+
+    // Keep only last 1000 logs
+    const maxRows = 1000;
+    const currentRows = logSheet.getLastRow();
+    if (currentRows > maxRows) {
+      logSheet.deleteRows(2, currentRows - maxRows);
+    }
+
+    ss.setActiveSheet(activeSheet);
+  } catch (error) {
+    console.error('LLM logging failed:', error);
   }
 }
 
@@ -243,11 +300,10 @@ PROFIL CANDIDAT:
  */
 function callGeminiAPI(profileData, jobDescription) {
   const maxRetries = 3;
-  const retryDelay = 2000; // Delay increases with each retry attempt
+  const retryDelay = 2000;
 
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
-      // Construct the prompt to be sent to the API
       const prompt = `${profileData}\n\nJOB DESCRIPTION:\n${jobDescription}\n\nTe rog să evaluezi și să furnizezi următoarele:
 1. Evaluare Tehnică (0-100): Evaluează potrivirea competențelor tehnice cu cerințele job-ului
 2. Evaluare Experiență (0-100): Evaluează relevanța experienței profesionale
@@ -263,10 +319,6 @@ Recomandări:
 - [recomandare 2]
 - [recomandare 3]`;
 
-      // Log the prompt being sent to the LLM
-      logToSheet(`LLM Request Prompt (Attempt ${attempt}):\n${prompt}`, 'DEBUG', '');
-
-      // Prepare the payload for the API request
       const payload = {
         'contents': [{
           'parts': [{
@@ -284,14 +336,6 @@ Recomandări:
         }
       };
 
-      // Log the full payload (formatted with indentation for easier reading)
-      logToSheet(
-        `LLM Request Payload (Attempt ${attempt}):\n${JSON.stringify(payload, null, 2)}`, 
-        'DEBUG', 
-        ''
-      );
-
-      // Configure HTTP request options for the Gemini API
       const options = {
         method: 'post',
         headers: {
@@ -302,30 +346,38 @@ Recomandări:
         muteHttpExceptions: true
       };
 
-      // Send the API request
       const response = UrlFetchApp.fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent', options);
       const responseCode = response.getResponseCode();
       const responseText = response.getContentText();
-
-      // Log the complete API response from the LLM
-      logToSheet(
-        `LLM Response (Attempt ${attempt}):\n${responseText}`, 
-        'DEBUG', 
-        `Response Code: ${responseCode}`
-      );
-
-      // Parse the response text to JSON
       const responseData = JSON.parse(responseText);
 
-      // If the response indicates rate limiting, handle retry logic
+      // Log the LLM interaction
+      if (responseCode === 200) {
+        const conclusions = responseData.candidates[0].content.parts[0].text;
+        logLLMInteraction(
+          prompt,
+          responseText,
+          conclusions,
+          'INFO',
+          `LLM Request (Attempt ${attempt})`
+        );
+      } else {
+        logLLMInteraction(
+          prompt,
+          responseText,
+          `Error: Response code ${responseCode}`,
+          'ERROR',
+          `Failed LLM Request (Attempt ${attempt})`
+        );
+      }
+
       if (responseCode === 429) {
-        logToSheet(`Rate limit hit on attempt ${attempt}.`, 'WARNING');
+        logToSheet(`Rate limit hit on attempt ${attempt}`, 'WARNING');
         if (attempt === maxRetries) throw new Error('RESOURCE_EXHAUSTED');
         Utilities.sleep(retryDelay * attempt);
         continue;
       }
 
-      // If the response code is not 200 (OK), throw an error
       if (responseCode !== 200) {
         throw new Error(`API returned code ${responseCode}: ${responseText}`);
       }
