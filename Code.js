@@ -3,11 +3,11 @@ const GEMINI_API_KEY = PropertiesService.getScriptProperties().getProperty('GEMI
 const LOG_SHEET_NAME = 'Logs';
 const JOB_DESCRIPTION_SHEET = 'Job Description';
 const OUTPUT_COLUMNS = {
-  TECHNICAL_SCORE: 'K',
-  EXPERIENCE_SCORE: 'L',
-  OVERALL_SCORE: 'M',
-  RECOMMENDATIONS: 'N',
-  STATUS: 'O'
+  TECHNICAL_SCORE: 'AV',  // Column 48
+  EXPERIENCE_SCORE: 'AW', // Column 49
+  OVERALL_SCORE: 'AX',    // Column 50
+  RECOMMENDATIONS: 'AY',  // Column 51
+  STATUS: 'AZ'           // Column 52
 };
 
 /**
