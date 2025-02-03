@@ -469,13 +469,41 @@ function isProfileProcessed(rowIndex) {
     OUTPUT_COLUMNS.OVERALL_SCORE
   ];
   
+  // Log the actual column letters we're checking
+  logToSheet(
+    `Checking if row ${rowIndex} is processed`,
+    'DEBUG',
+    `Checking columns: ${scoreColumns.join(', ')}`
+  );
+  
   // Check each score column
+  const values = {};
   for (const column of scoreColumns) {
-    const value = sheet.getRange(rowIndex, column.charCodeAt(0) - 64).getValue();
+    const columnIndex = column.charCodeAt(0) - 64;
+    const value = sheet.getRange(rowIndex, columnIndex).getValue();
+    values[column] = value;
+    
+    logToSheet(
+      `Checking column ${column} for row ${rowIndex}`,
+      'DEBUG',
+      `Value found: "${value}" (${typeof value})`
+    );
+    
     if (value === '' || value === null || value === undefined) {
+      logToSheet(
+        `Row ${rowIndex} is NOT processed`,
+        'DEBUG',
+        `Column ${column} is empty`
+      );
       return false;
     }
   }
+  
+  logToSheet(
+    `Row ${rowIndex} is processed`,
+    'DEBUG',
+    `Values found: ${JSON.stringify(values)}`
+  );
   
   return true;
 }
