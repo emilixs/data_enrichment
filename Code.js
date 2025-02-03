@@ -10,6 +10,55 @@ const OUTPUT_COLUMNS = {
   STATUS: 'AZ'           // Column 52
 };
 
+// Add this at the top with other constants
+const COLUMN_MAPPING = {
+  'companyIndustry': 'A',
+  'companyName': 'B',
+  'firstName': 'C',
+  'lastName': 'D',
+  'linkedinCompanyUrl': 'E',
+  'linkedinCompanySlug': 'F',
+  'linkedinFollowersCount': 'G',
+  'linkedinHeadline': 'H',
+  'linkedinIsHiringBadge': 'I',
+  'linkedinIsOpenToWorkBadge': 'J',
+  'linkedinJobDateRange': 'K',
+  'linkedinJobTitle': 'L',
+  'linkedinPreviousJobDateRange': 'M',
+  'linkedinPreviousJobTitle': 'N',
+  'linkedinProfileSlug': 'P',
+  'linkedinProfileUrl': 'Q',
+  'linkedinProfileUrn': 'R',
+  'linkedinSkillsLabel': 'S',
+  'location': 'T',
+  'previousCompanyName': 'U',
+  'connectionDegree': 'V',
+  'refreshedAt': 'W',
+  'mutualConnectionsUrl': 'X',
+  'connectionsUrl': 'Y',
+  'linkedinConnectionsCount': 'Z',
+  'profileUrl': 'AA',
+  'linkedinSchoolUrl': 'AB',
+  'linkedinSchoolCompanySlug': 'AC',
+  'linkedinSchoolDegree': 'AD',
+  'linkedinSchoolName': 'AE',
+  'linkedinJobLocation': 'AF',
+  'linkedinPreviousSchoolUrl': 'AG',
+  'linkedinPreviousSchoolCompanySlug': 'AH',
+  'linkedinPreviousSchoolDateRange': 'AI',
+  'linkedinPreviousSchoolDegree': 'AJ',
+  'linkedinPreviousSchoolName': 'AK',
+  'linkedinSchoolDateRange': 'AL',
+  'linkedinDescription': 'AM',
+  'linkedinPreviousJobLocation': 'AN',
+  'linkedinPreviousCompanySlug': 'AO',
+  'linkedinPreviousJobDescription': 'AP',
+  'linkedinSchoolDescription': 'AQ',
+  'linkedinJobDescription': 'AR',
+  'linkedinPreviousSchoolDescription': 'AS',
+  'error': 'AT' // First error column
+};
+
 /**
  * logToSheet
  *
@@ -609,49 +658,18 @@ function validateStructure() {
   return true;
 }
 
-// Helper function to get column index by name
+// Update the getColumnByName function to use the mapping
 function getColumnByName(columnName) {
-  const sheet = SpreadsheetApp.getActiveSheet();
-  const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
-  
-  // Log all headers for debugging
-  logToSheet(
-    'Searching for column', 
-    'DEBUG', 
-    `Looking for: "${columnName}" among headers: ${JSON.stringify(headers)}`
-  );
-  
-  // Try exact match first
-  let columnIndex = headers.findIndex(header => {
-    const headerStr = header.toString().toLowerCase();
-    const searchStr = columnName.toLowerCase();
-    const isMatch = headerStr === searchStr;
-    
-    // Log each comparison
+  const column = COLUMN_MAPPING[columnName];
+  if (!column) {
     logToSheet(
-      'Column comparison', 
-      'DEBUG', 
-      `Comparing "${headerStr}" with "${searchStr}" - Match: ${isMatch}`
+      'Column mapping not found', 
+      'ERROR', 
+      `No mapping found for column: ${columnName}`
     );
-    
-    return isMatch;
-  });
-
-  if (columnIndex === -1) {
-    logToSheet(
-      'Column not found', 
-      'WARNING', 
-      `Could not find column "${columnName}" in headers`
-    );
-  } else {
-    logToSheet(
-      'Column found', 
-      'DEBUG', 
-      `Found "${columnName}" at index ${columnIndex + 1}`
-    );
+    return -1;
   }
-
-  return columnIndex + 1;
+  return columnToNumber(column);
 }
 
 // Error logging
