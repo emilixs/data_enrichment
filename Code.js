@@ -175,63 +175,76 @@ function processProfiles() {
   const sheet = SpreadsheetApp.getActiveSheet();
   const lastRow = sheet.getLastRow();
   let processedCount = 0;
+  let skippedCount = 0;
   const PROFILE_LIMIT = 5;
 
   // Get Job Description
   const jobDesc = getJobDescription();
   if (!jobDesc) {
+    logToSheet('Job Description not configured', 'ERROR');
     ui.alert('Error', 'Job Description nu este configurat!', ui.ButtonSet.OK);
     return;
   }
 
-  logToSheet(`Looking for first ${PROFILE_LIMIT} unprocessed profiles`, 'INFO');
+  logToSheet(`Starting to process profiles. Will process up to ${PROFILE_LIMIT} unprocessed profiles`, 'INFO');
 
-  // Add status cell
-  const statusCell = sheet.getRange(1, OUTPUT_COLUMNS.STATUS.charCodeAt(0) - 64);
-  statusCell.setValue("Status: În procesare...");
-
-  for (let row = 2; row <= lastRow && processedCount < PROFILE_LIMIT; row++) {
-    if (!isProfileProcessed(row)) {
-      const profileData = extractProfileData(row);
-      if (validateProfileData(profileData)) {
-        try {
-          logToSheet(`Processing profile ${processedCount + 1}/${PROFILE_LIMIT}: ${profileData.firstName} ${profileData.lastName}`, 'INFO', `Row: ${row}`);
-          statusCell.setValue(`Status: Procesare ${profileData.firstName} ${profileData.lastName}... (${processedCount + 1}/${PROFILE_LIMIT})`);
-          
-          const formattedData = formatProfileData(profileData);
-          const response = callGeminiAPI(formattedData, jobDesc);
-          logToSheet('API response received', 'DEBUG', JSON.stringify(response));
-          
-          const evaluationData = parseGeminiResponse(response);
-          updateSheet(row, evaluationData);
-          processedCount++;
-          
-          // Add delay between requests
-          Utilities.sleep(2000);
-        } catch (error) {
-          logToSheet(`Error processing profile`, 'ERROR', `Row: ${row}, Error: ${error.message}`);
-          logError(error, row);
-          
-          if (error.message.includes('RESOURCE_EXHAUSTED')) {
-            const waitMinutes = 2;
-            statusCell.setValue(`Status: Rate limit atins. Așteptăm ${waitMinutes} minute...`);
-            Utilities.sleep(waitMinutes * 60 * 1000);
-            row--; // Retry the same row
-            continue;
-          }
-        }
+  try {
+    for (let row = 2; row <= lastRow; row++) {
+      // Check if we've hit the processing limit
+      if (processedCount >= PROFILE_LIMIT) {
+        logToSheet(`Reached processing limit of ${PROFILE_LIMIT} profiles`, 'INFO');
+        break;
       }
-    } else {
-      logToSheet(`Skipping processed profile at row ${row}`, 'INFO');
+
+      if (!isProfileProcessed(row)) {
+        const profileData = extractProfileData(row);
+        if (validateProfileData(profileData)) {
+          try {
+            logToSheet(`Processing profile at row ${row} (${processedCount + 1}/${PROFILE_LIMIT})`, 'INFO');
+            
+            const formattedData = formatProfileData(profileData);
+            const response = callGeminiAPI(formattedData, jobDesc);
+            
+            const evaluationData = parseGeminiResponse(response);
+            updateSheet(row, evaluationData);
+            processedCount++;
+            
+            // Add delay between requests
+            if (processedCount < PROFILE_LIMIT) {
+              Utilities.sleep(2000);
+            }
+          } catch (error) {
+            logToSheet(`Error processing row ${row}`, 'ERROR', error.message);
+            logError(error, row);
+            
+            if (error.message.includes('RESOURCE_EXHAUSTED')) {
+              const waitMinutes = 2;
+              const waitMessage = `Rate limit atins. Așteptăm ${waitMinutes} minute...`;
+              logToSheet(waitMessage, 'WARNING');
+              sheet.getRange(row, OUTPUT_COLUMNS.STATUS.charCodeAt(0) - 64)
+                .setValue(`Eroare: ${waitMessage}`);
+              Utilities.sleep(waitMinutes * 60 * 1000);
+              row--; // Retry the same row
+              continue;
+            }
+          }
+        } else {
+          // Update status for invalid profiles
+          sheet.getRange(row, OUTPUT_COLUMNS.STATUS.charCodeAt(0) - 64)
+            .setValue('Date profil invalide sau incomplete');
+        }
+      } else {
+        logToSheet(`Skipping processed profile at row ${row}`, 'INFO');
+        skippedCount++;
+      }
     }
+  } catch (error) {
+    logToSheet('Processing failed', 'ERROR', error.message);
+    throw error;
   }
-  
-  const finalMessage = processedCount === 0 
-    ? 'Status: Nu s-au găsit profile neprocesate.'
-    : `Status: Procesare completă. ${processedCount} profile actualizate.`;
-  
-  statusCell.setValue(finalMessage);
-  logToSheet('Processing completed', 'INFO', `Processed count: ${processedCount}`);
+
+  logToSheet('Processing completed', 'INFO', 
+    `Processed: ${processedCount}, Skipped: ${skippedCount}, Total rows checked: ${lastRow - 1}`);
 }
 
 // Profile data extraction
@@ -439,6 +452,10 @@ function updateSheet(rowIndex, data) {
   // Update recommendations
   sheet.getRange(rowIndex, OUTPUT_COLUMNS.RECOMMENDATIONS.charCodeAt(0) - 64)
     .setValue(data.recommendations.join('\n'));
+
+  // Update status/conclusions for this specific row
+  const conclusion = `Evaluare completă - Scor tehnic: ${data.technicalScore}, Experiență: ${data.experienceScore}, General: ${data.overallScore}`;
+  sheet.getRange(rowIndex, OUTPUT_COLUMNS.STATUS.charCodeAt(0) - 64).setValue(conclusion);
 }
 
 // Profile processing check
