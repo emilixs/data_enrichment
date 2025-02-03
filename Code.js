@@ -59,29 +59,17 @@ function configureJobDescription() {
   
   if (!jobDescSheet) {
     jobDescSheet = ss.insertSheet(JOB_DESCRIPTION_SHEET);
-    jobDescSheet.getRange('A1').setValue('Job Description URL');
+    jobDescSheet.getRange('A1').setValue('Job Description');
   }
   
   const response = ui.prompt(
     'Configurare Job Description',
-    'Introduceți URL-ul Google Doc-ului cu Job Description:',
+    'Introduceți descrierea job-ului pentru evaluarea profilelor:',
     ui.ButtonSet.OK_CANCEL);
 
   if (response.getSelectedButton() == ui.Button.OK) {
-    const docUrl = response.getResponseText();
-    try {
-      // Extract document ID from URL
-      const docId = extractDocId(docUrl);
-      if (!docId) {
-        ui.alert('Error', 'URL invalid. Vă rugăm să furnizați un URL valid de Google Doc.', ui.ButtonSet.OK);
-        return;
-      }
-      
-      jobDescSheet.getRange('A2').setValue(docUrl);
-      ui.alert('Job Description URL salvat cu succes!');
-    } catch (error) {
-      ui.alert('Error', 'Nu s-a putut salva URL-ul: ' + error.message, ui.ButtonSet.OK);
-    }
+    jobDescSheet.getRange('A2').setValue(response.getResponseText());
+    ui.alert('Job Description salvat cu succes!');
   }
 }
 
@@ -179,8 +167,6 @@ function processProfiles() {
 function extractProfileData(row) {
   const sheet = SpreadsheetApp.getActiveSheet();
   return {
-    firstName: sheet.getRange(row, getColumnByName('firstName')).getValue(),
-    lastName: sheet.getRange(row, getColumnByName('lastName')).getValue(),
     companyIndustry: sheet.getRange(row, getColumnByName('companyIndustry')).getValue(),
     companyName: sheet.getRange(row, getColumnByName('companyName')).getValue(),
     linkedinHeadline: sheet.getRange(row, getColumnByName('linkedinHeadline')).getValue(),
@@ -193,10 +179,14 @@ function extractProfileData(row) {
     previousCompanyName: sheet.getRange(row, getColumnByName('previousCompanyName')).getValue(),
     linkedinSchoolDegree: sheet.getRange(row, getColumnByName('linkedinSchoolDegree')).getValue(),
     linkedinSchoolName: sheet.getRange(row, getColumnByName('linkedinSchoolName')).getValue(),
+    linkedinPreviousSchoolDateRange: sheet.getRange(row, getColumnByName('linkedinPreviousSchoolDateRange')).getValue(),
+    linkedinPreviousSchoolDegree: sheet.getRange(row, getColumnByName('linkedinPreviousSchoolDegree')).getValue(),
+    linkedinPreviousSchoolName: sheet.getRange(row, getColumnByName('linkedinPreviousSchoolName')).getValue(),
+    linkedinSchoolDateRange: sheet.getRange(row, getColumnByName('linkedinSchoolDateRange')).getValue(),
     linkedinDescription: sheet.getRange(row, getColumnByName('linkedinDescription')).getValue(),
-    linkedinJobDescription: sheet.getRange(row, getColumnByName('linkedinJobDescription')).getValue(),
     linkedinPreviousJobDescription: sheet.getRange(row, getColumnByName('linkedinPreviousJobDescription')).getValue(),
     linkedinSchoolDescription: sheet.getRange(row, getColumnByName('linkedinSchoolDescription')).getValue(),
+    linkedinJobDescription: sheet.getRange(row, getColumnByName('linkedinJobDescription')).getValue(),
     linkedinPreviousSchoolDescription: sheet.getRange(row, getColumnByName('linkedinPreviousSchoolDescription')).getValue()
   };
 }
@@ -218,8 +208,10 @@ PROFIL CANDIDAT:
    - Descriere Anterioară: ${profileData.linkedinPreviousJobDescription || 'N/A'}
 
 3. Educație:
-   - Studii: ${profileData.linkedinSchoolName || 'N/A'} - ${profileData.linkedinSchoolDegree || 'N/A'}
+   - Studii Actuale: ${profileData.linkedinSchoolName || 'N/A'} - ${profileData.linkedinSchoolDegree || 'N/A'} (${profileData.linkedinSchoolDateRange || 'N/A'})
    - Descriere: ${profileData.linkedinSchoolDescription || 'N/A'}
+   - Studii Anterioare: ${profileData.linkedinPreviousSchoolName || 'N/A'} - ${profileData.linkedinPreviousSchoolDegree || 'N/A'} (${profileData.linkedinPreviousSchoolDateRange || 'N/A'})
+   - Descriere: ${profileData.linkedinPreviousSchoolDescription || 'N/A'}
 
 4. Competențe și Profil:
    - Competențe: ${profileData.linkedinSkillsLabel || 'N/A'}
@@ -352,47 +344,12 @@ function isProfileProcessed(rowIndex) {
   return row.some(cell => cell !== '');
 }
 
-// Get Job Description from Google Doc
+// Get Job Description
 function getJobDescription() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const jobDescSheet = ss.getSheetByName(JOB_DESCRIPTION_SHEET);
   if (!jobDescSheet) return null;
-  
-  const docUrl = jobDescSheet.getRange('A2').getValue();
-  if (!docUrl) return null;
-  
-  try {
-    const docId = extractDocId(docUrl);
-    if (!docId) return null;
-    
-    // Access the document and get its content
-    const doc = DocumentApp.openById(docId);
-    if (!doc) return null;
-    
-    return doc.getBody().getText();
-  } catch (error) {
-    logToSheet(`Error reading Job Description: ${error.message}`, 'ERROR');
-    return null;
-  }
-}
-
-// Helper function to extract Google Doc ID from URL
-function extractDocId(url) {
-  // Handle different Google Doc URL formats
-  const patterns = [
-    /\/document\/d\/([a-zA-Z0-9-_]+)/,  // Standard format
-    /\/document\/u\/\d+\/d\/([a-zA-Z0-9-_]+)/,  // With user number
-    /^([a-zA-Z0-9-_]+)$/  // Direct ID
-  ];
-  
-  for (const pattern of patterns) {
-    const match = url.match(pattern);
-    if (match && match[1]) {
-      return match[1];
-    }
-  }
-  
-  return null;
+  return jobDescSheet.getRange('A2').getValue();
 }
 
 // Validation function
@@ -401,8 +358,27 @@ function validateStructure() {
   const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
   
   const requiredColumns = [
-    'companyIndustry', 'companyName', 'linkedinHeadline', 'linkedinJobTitle',
-    'linkedinSkillsLabel', 'location', 'linkedinDescription', 'linkedinJobDescription'
+    'companyIndustry',
+    'companyName',
+    'linkedinHeadline',
+    'linkedinJobDateRange',
+    'linkedinJobTitle',
+    'linkedinPreviousJobDateRange',
+    'linkedinPreviousJobTitle',
+    'linkedinSkillsLabel',
+    'location',
+    'previousCompanyName',
+    'linkedinSchoolDegree',
+    'linkedinSchoolName',
+    'linkedinPreviousSchoolDateRange',
+    'linkedinPreviousSchoolDegree',
+    'linkedinPreviousSchoolName',
+    'linkedinSchoolDateRange',
+    'linkedinDescription',
+    'linkedinPreviousJobDescription',
+    'linkedinSchoolDescription',
+    'linkedinJobDescription',
+    'linkedinPreviousSchoolDescription'
   ];
 
   const missingColumns = requiredColumns.filter(col => 
