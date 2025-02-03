@@ -104,6 +104,7 @@ function processProfiles() {
   const sheet = SpreadsheetApp.getActiveSheet();
   const lastRow = sheet.getLastRow();
   let processedCount = 0;
+  const PROFILE_LIMIT = 5;
 
   // Get Job Description
   const jobDesc = getJobDescription();
@@ -112,19 +113,19 @@ function processProfiles() {
     return;
   }
 
-  logToSheet(`Processing profiles from row 2 to ${lastRow}`, 'INFO');
+  logToSheet(`Looking for first ${PROFILE_LIMIT} unprocessed profiles`, 'INFO');
 
   // Add status cell
   const statusCell = sheet.getRange(1, OUTPUT_COLUMNS.STATUS.charCodeAt(0) - 64);
   statusCell.setValue("Status: În procesare...");
 
-  for (let row = 2; row <= lastRow; row++) {
+  for (let row = 2; row <= lastRow && processedCount < PROFILE_LIMIT; row++) {
     if (!isProfileProcessed(row)) {
       const profileData = extractProfileData(row);
       if (validateProfileData(profileData)) {
         try {
-          logToSheet(`Processing profile: ${profileData.firstName} ${profileData.lastName}`, 'INFO', `Row: ${row}`);
-          statusCell.setValue(`Status: Procesare ${profileData.firstName} ${profileData.lastName}... (${row-1}/${lastRow-1})`);
+          logToSheet(`Processing profile ${processedCount + 1}/${PROFILE_LIMIT}: ${profileData.firstName} ${profileData.lastName}`, 'INFO', `Row: ${row}`);
+          statusCell.setValue(`Status: Procesare ${profileData.firstName} ${profileData.lastName}... (${processedCount + 1}/${PROFILE_LIMIT})`);
           
           const formattedData = formatProfileData(profileData);
           const response = callGeminiAPI(formattedData, jobDesc);
@@ -154,7 +155,10 @@ function processProfiles() {
     }
   }
   
-  const finalMessage = `Status: Procesare completă. ${processedCount} profile actualizate.`;
+  const finalMessage = processedCount === 0 
+    ? 'Status: Nu s-au găsit profile neprocesate.'
+    : `Status: Procesare completă. ${processedCount} profile actualizate.`;
+  
   statusCell.setValue(finalMessage);
   logToSheet('Processing completed', 'INFO', `Processed count: ${processedCount}`);
 }
