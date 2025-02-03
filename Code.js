@@ -218,13 +218,27 @@ PROFIL CANDIDAT:
    - Descriere Profil: ${profileData.linkedinDescription || 'N/A'}`;
 }
 
-// API interaction
+/**
+ * callGeminiAPI
+ * 
+ * Sends a prompt built from the candidate profile data and the job description to the Gemini API.
+ * Retries the call up to a maximum of maxRetries in case of failures or rate limiting.
+ * Logs exactly what is sent to the LLM (including the prompt and JSON payload without sensitive details)
+ * and what is sent back (the full response from the API).
+ *
+ * @param {string} profileData - The formatted candidate profile data.
+ * @param {string} jobDescription - The configured job description.
+ * @returns {Object} - The parsed JSON response from the Gemini API.
+ * @throws Will throw an error if the maximum number of retries is exceeded.
+ */
 function callGeminiAPI(profileData, jobDescription) {
   const maxRetries = 3;
-  const retryDelay = 2000;
-  
+  const retryDelay = 2000; // Delay increases with each retry attempt
+
+  // Loop to handle retry logic in the event of failures or rate limiting.
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
+      // Construct the prompt for the LLM request.
       const prompt = `${profileData}\n\nJOB DESCRIPTION:\n${jobDescription}\n\nTe rog să evaluezi și să furnizezi următoarele:
 1. Evaluare Tehnică (0-100): Evaluează potrivirea competențelor tehnice cu cerințele job-ului
 2. Evaluare Experiență (0-100): Evaluează relevanța experienței profesionale
@@ -240,36 +254,52 @@ Recomandări:
 - [recomandare 2]
 - [recomandare 3]`;
 
+      // Log the exact prompt being sent to the LLM.
+      logToSheet(`LLM Request Prompt (Attempt ${attempt}): ${prompt}`, 'DEBUG', '');
+
+      // Prepare the payload that will be sent in the API request.
+      const payload = {
+        'contents': [{
+          'parts': [{
+            'text': prompt
+          }]
+        }],
+        'model': 'gemini-1.5-flash',
+        'generationConfig': {
+          'temperature': 0,
+          'topK': 1,
+          'topP': 1
+        },
+        'tools': {
+          'google_search_retrieval': {}
+        }
+      };
+
+      // Log the payload details (excluding sensitive header info such as the API key).
+      logToSheet(`LLM Request Payload (Attempt ${attempt}): ${JSON.stringify(payload)}`, 'DEBUG', '');
+
+      // Configure the HTTP request options for the Gemini API.
       const options = {
         'method': 'post',
         'headers': {
           'x-goog-api-key': GEMINI_API_KEY,
           'Content-Type': 'application/json',
         },
-        'payload': JSON.stringify({
-          'contents': [{
-            'parts': [{
-              'text': prompt
-            }]
-          }],
-          'model': 'gemini-1.5-flash',
-          'generationConfig': {
-            'temperature': 0,
-            'topK': 1,
-            'topP': 1
-          },
-          'tools': {
-            'google_search_retrieval': {}
-          }
-        }),
+        'payload': JSON.stringify(payload),
         'muteHttpExceptions': true
       };
 
+      // Send the request to the Gemini API.
       const response = UrlFetchApp.fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent', options);
       const responseCode = response.getResponseCode();
       const responseText = response.getContentText();
+
+      // Log exactly what the LLM (Gemini API) sent back.
+      logToSheet(`LLM Response (Attempt ${attempt}): ${responseText}`, 'DEBUG', `Response Code: ${responseCode}`);
+
       const responseData = JSON.parse(responseText);
 
+      // Handle rate limiting (HTTP 429) by retrying the request.
       if (responseCode === 429) {
         logToSheet(`Rate limit hit on attempt ${attempt}`, 'WARNING');
         if (attempt === maxRetries) throw new Error('RESOURCE_EXHAUSTED');
@@ -277,12 +307,14 @@ Recomandări:
         continue;
       }
 
+      // If any non-successful response is received, throw an error.
       if (responseCode !== 200) {
         throw new Error(`API returned code ${responseCode}: ${responseText}`);
       }
 
       return responseData;
     } catch (error) {
+      // On the final retry attempt, throw the error.
       if (attempt === maxRetries) throw error;
       logToSheet(`Attempt ${attempt} failed: ${error.message}`, 'WARNING');
       Utilities.sleep(retryDelay * attempt);
