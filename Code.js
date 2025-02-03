@@ -585,3 +585,48 @@ function setupOutputColumns() {
     }
   }
 }
+
+// Profile data validation
+function validateProfileData(profileData) {
+  // Required fields that must have a value
+  const requiredFields = [
+    'companyIndustry',
+    'companyName',
+    'linkedinHeadline',
+    'linkedinJobDateRange',
+    'linkedinJobTitle',
+    'linkedinPreviousJobDateRange',
+    'linkedinPreviousJobTitle',
+    'linkedinSkillsLabel',
+    'location',
+    'previousCompanyName',
+    'linkedinSchoolDegree',
+    'linkedinSchoolName',
+    'linkedinPreviousSchoolDateRange',
+    'linkedinPreviousSchoolDegree',
+    'linkedinPreviousSchoolName',
+    'linkedinSchoolDateRange',
+    'linkedinDescription',
+    'linkedinPreviousJobDescription',
+    'linkedinSchoolDescription',
+    'linkedinJobDescription',
+    'linkedinPreviousSchoolDescription'
+  ];
+
+  // Check if all required fields have a value
+  const missingFields = requiredFields.filter(field => {
+    const value = profileData[field];
+    return value === undefined || value === null || value.toString().trim() === '';
+  });
+
+  if (missingFields.length > 0) {
+    logToSheet(
+      'Missing required profile data fields', 
+      'WARNING', 
+      `Missing fields: ${missingFields.join(', ')}`
+    );
+    return false;
+  }
+
+  return true;
+}
