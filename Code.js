@@ -156,7 +156,10 @@ function resetEvaluations() {
     const sheet = SpreadsheetApp.getActiveSheet();
     const lastRow = sheet.getLastRow();
     if (lastRow > 1) {
-      sheet.getRange(2, OUTPUT_COLUMNS.TECHNICAL_SCORE.charCodeAt(0) - 64, lastRow - 1, 5).clearContent();
+      // Clear content from AV to AZ for all rows except header
+      const startCol = columnToNumber('AV');
+      const numCols = 5; // AV to AZ
+      sheet.getRange(2, startCol, lastRow - 1, numCols).clearContent();
       ui.alert('Evaluările au fost resetate cu succes!');
     }
   }
@@ -440,22 +443,55 @@ function parseGeminiResponse(response) {
   return data;
 }
 
+// Helper function to convert column letters to numbers
+function columnToNumber(column) {
+  let result = 0;
+  const length = column.length;
+  
+  for (let i = 0; i < length; i++) {
+    result += (column.charCodeAt(i) - 64) * Math.pow(26, length - i - 1);
+  }
+  
+  return result;
+}
+
+// Add a test function to verify column calculations
+function testColumnCalculations() {
+  const sheet = SpreadsheetApp.getActiveSheet();
+  const testColumns = {
+    'AV': 48,  // Expected column number
+    'AW': 49,
+    'AX': 50,
+    'AY': 51,
+    'AZ': 52
+  };
+  
+  for (const [col, expected] of Object.entries(testColumns)) {
+    const calculated = columnToNumber(col);
+    logToSheet(
+      'Column number calculation test',
+      'DEBUG',
+      `Column ${col}: Expected ${expected}, Got ${calculated}`
+    );
+  }
+}
+
 // Sheet update function
 function updateSheet(rowIndex, data) {
   const sheet = SpreadsheetApp.getActiveSheet();
   
   // Update scores
-  sheet.getRange(rowIndex, OUTPUT_COLUMNS.TECHNICAL_SCORE.charCodeAt(0) - 64).setValue(data.technicalScore);
-  sheet.getRange(rowIndex, OUTPUT_COLUMNS.EXPERIENCE_SCORE.charCodeAt(0) - 64).setValue(data.experienceScore);
-  sheet.getRange(rowIndex, OUTPUT_COLUMNS.OVERALL_SCORE.charCodeAt(0) - 64).setValue(data.overallScore);
+  sheet.getRange(rowIndex, columnToNumber(OUTPUT_COLUMNS.TECHNICAL_SCORE)).setValue(data.technicalScore);
+  sheet.getRange(rowIndex, columnToNumber(OUTPUT_COLUMNS.EXPERIENCE_SCORE)).setValue(data.experienceScore);
+  sheet.getRange(rowIndex, columnToNumber(OUTPUT_COLUMNS.OVERALL_SCORE)).setValue(data.overallScore);
   
   // Update recommendations
-  sheet.getRange(rowIndex, OUTPUT_COLUMNS.RECOMMENDATIONS.charCodeAt(0) - 64)
+  sheet.getRange(rowIndex, columnToNumber(OUTPUT_COLUMNS.RECOMMENDATIONS))
     .setValue(data.recommendations.join('\n'));
 
-  // Update status/conclusions for this specific row
+  // Update status/conclusions
   const conclusion = `Evaluare completă - Scor tehnic: ${data.technicalScore}, Experiență: ${data.experienceScore}, General: ${data.overallScore}`;
-  sheet.getRange(rowIndex, OUTPUT_COLUMNS.STATUS.charCodeAt(0) - 64).setValue(conclusion);
+  sheet.getRange(rowIndex, columnToNumber(OUTPUT_COLUMNS.STATUS)).setValue(conclusion);
 }
 
 // Profile processing check
@@ -479,7 +515,7 @@ function isProfileProcessed(rowIndex) {
   // Check each score column
   const values = {};
   for (const column of scoreColumns) {
-    const columnIndex = column.charCodeAt(0) - 64;
+    const columnIndex = columnToNumber(column);
     const value = sheet.getRange(rowIndex, columnIndex).getValue();
     values[column] = value;
     
@@ -628,7 +664,7 @@ function logError(error, rowIndex) {
   const errorDetails = error.message.includes('code') ? error.message : 'Error: ' + error.message;
   
   // Update status column only
-  sheet.getRange(rowIndex, OUTPUT_COLUMNS.STATUS.charCodeAt(0) - 64).setValue(errorDetails);
+  sheet.getRange(rowIndex, columnToNumber(OUTPUT_COLUMNS.STATUS)).setValue(errorDetails);
 }
 
 // Add this after the onOpen function
