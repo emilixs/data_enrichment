@@ -549,7 +549,44 @@ function validateStructure() {
 function getColumnByName(columnName) {
   const sheet = SpreadsheetApp.getActiveSheet();
   const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
-  const columnIndex = headers.findIndex(header => header.toString().toLowerCase() === columnName.toLowerCase());
+  
+  // Log all headers for debugging
+  logToSheet(
+    'Searching for column', 
+    'DEBUG', 
+    `Looking for: "${columnName}" among headers: ${JSON.stringify(headers)}`
+  );
+  
+  // Try exact match first
+  let columnIndex = headers.findIndex(header => {
+    const headerStr = header.toString().toLowerCase();
+    const searchStr = columnName.toLowerCase();
+    const isMatch = headerStr === searchStr;
+    
+    // Log each comparison
+    logToSheet(
+      'Column comparison', 
+      'DEBUG', 
+      `Comparing "${headerStr}" with "${searchStr}" - Match: ${isMatch}`
+    );
+    
+    return isMatch;
+  });
+
+  if (columnIndex === -1) {
+    logToSheet(
+      'Column not found', 
+      'WARNING', 
+      `Could not find column "${columnName}" in headers`
+    );
+  } else {
+    logToSheet(
+      'Column found', 
+      'DEBUG', 
+      `Found "${columnName}" at index ${columnIndex + 1}`
+    );
+  }
+
   return columnIndex + 1;
 }
 
