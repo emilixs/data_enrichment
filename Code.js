@@ -461,8 +461,23 @@ function updateSheet(rowIndex, data) {
 // Profile processing check
 function isProfileProcessed(rowIndex) {
   const sheet = SpreadsheetApp.getActiveSheet();
-  const row = sheet.getRange(rowIndex, OUTPUT_COLUMNS.TECHNICAL_SCORE.charCodeAt(0) - 64, 1, 4).getValues()[0];
-  return row.some(cell => cell !== '');
+  
+  // Get only the three score columns (Technical, Experience, Overall)
+  const scoreColumns = [
+    OUTPUT_COLUMNS.TECHNICAL_SCORE,
+    OUTPUT_COLUMNS.EXPERIENCE_SCORE,
+    OUTPUT_COLUMNS.OVERALL_SCORE
+  ];
+  
+  // Check each score column
+  for (const column of scoreColumns) {
+    const value = sheet.getRange(rowIndex, column.charCodeAt(0) - 64).getValue();
+    if (value === '' || value === null || value === undefined) {
+      return false;
+    }
+  }
+  
+  return true;
 }
 
 // Get Job Description
