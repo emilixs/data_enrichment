@@ -120,8 +120,34 @@ Recomandări:
 - Verificare structură coloane înainte de procesare
 - Verificare existență API key Gemini
 - Verificare existență job description configurat
-- Verificare completitudine date profil (câmpuri obligatorii)
+- Verificare date profil:
+  - Câmpuri esențiale:
+    - linkedinJobTitle (poziția actuală) - Singurul câmp obligatoriu
+  - Câmpuri opționale (înlocuite automat cu "N/A" dacă lipsesc):
+    - companyIndustry (industria)
+    - companyName (numele companiei)
+    - linkedinHeadline (titlul profilului)
+    - linkedinJobDateRange (perioada job actual)
+    - linkedinPreviousJobDateRange (perioada job anterior)
+    - linkedinPreviousJobTitle (poziția anterioară)
+    - linkedinSkillsLabel (competențe)
+    - location (locația)
+    - previousCompanyName (compania anterioară)
+    - linkedinSchoolDegree (diploma)
+    - linkedinSchoolName (școala)
+    - linkedinPreviousSchoolDateRange (perioada școală anterioară)
+    - linkedinPreviousSchoolDegree (diploma anterioară)
+    - linkedinPreviousSchoolName (școala anterioară)
+    - linkedinSchoolDateRange (perioada școală)
+    - linkedinDescription (descriere profil)
+    - linkedinPreviousJobDescription (descriere job anterior)
+    - linkedinSchoolDescription (descriere școală)
+    - linkedinJobDescription (descriere job actual)
+    - linkedinPreviousSchoolDescription (descriere școală anterioară)
 - Validare format date (perioade, URL-uri)
+- Logging detaliat pentru câmpurile lipsă:
+  - WARNING pentru câmpuri esențiale lipsă
+  - INFO pentru câmpuri opționale lipsă
 
 ### 3.3 Procesare Date
 1. Citire job description configurat
