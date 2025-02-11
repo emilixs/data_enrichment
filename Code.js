@@ -3,9 +3,9 @@ const GEMINI_API_KEY = PropertiesService.getScriptProperties().getProperty('GEMI
 const LOG_SHEET_NAME = 'Logs';
 const JOB_DESCRIPTION_SHEET = 'Job Description';
 const OUTPUT_COLUMNS = {
-  TECHNICAL_SCORE: 'AV',  // Column 48
-  EXPERIENCE_SCORE: 'AW', // Column 49
-  OVERALL_SCORE: 'AX',    // Column 50
+  CRITERIA_1_SCORE: 'AV',  // Column 48
+  CRITERIA_2_SCORE: 'AW', // Column 49
+  CRITERIA_3_SCORE: 'AX',    // Column 50
   RECOMMENDATIONS: 'AY',  // Column 51
   STATUS: 'AZ'           // Column 52
 };
@@ -567,6 +567,47 @@ PROFIL CANDIDAT:
 }
 
 /**
+ * Gets the evaluation criteria from the Criterii Evaluare CV sheet
+ * @returns {Array<Object>} Array of criteria objects with title and prompt
+ */
+function getEvaluationCriteria() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const criteriaSheet = ss.getSheetByName(CRITERIA_SHEET_NAME);
+  
+  if (!criteriaSheet) {
+    throw new Error('Criteriile de evaluare nu au fost configurate. Vă rugăm să configurați mai întâi job description-ul.');
+  }
+  
+  const titles = criteriaSheet.getRange(1, 1, 1, 3).getValues()[0];
+  const prompts = criteriaSheet.getRange(2, 1, 1, 3).getValues()[0];
+  
+  return titles.map((title, index) => ({
+    title: title,
+    prompt: prompts[index]
+  }));
+}
+
+/**
+ * Gets the stored job description text
+ * @returns {string} The job description text
+ */
+function getJobDescription() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const jobDescSheet = ss.getSheetByName(JOB_DESCRIPTION_SHEET);
+  
+  if (!jobDescSheet) {
+    throw new Error('Job Description sheet not found');
+  }
+  
+  const jobDesc = jobDescSheet.getRange('B2').getValue();
+  if (!jobDesc) {
+    throw new Error('Job Description not configured');
+  }
+  
+  return jobDesc;
+}
+
+/**
  * callGeminiAPI
  *
  * Constructs a request prompt and payload combining candidate profile data and the job description,
@@ -585,21 +626,26 @@ function callGeminiAPI(prompt, jobDescription) {
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
       // Only add the evaluation part if we're evaluating a profile (when jobDescription is not empty)
-      const finalPrompt = jobDescription ? 
-        `${prompt}\n\nJOB DESCRIPTION:\n${jobDescription}\n\nTe rog să evaluezi și să furnizezi următoarele:
-1. Evaluare Tehnică (0-100): Evaluează potrivirea competențelor tehnice cu cerințele job-ului
-2. Evaluare Experiență (0-100): Evaluează relevanța experienței profesionale
-3. Scor General (0-100): Calculează compatibilitatea generală
-4. Recomandări: Oferă 2-3 sugestii concrete pentru îmbunătățirea profilului
-
-Răspunde strict în următorul format:
-Evaluare Tehnică: [scor]
-Evaluare Experiență: [scor]
-Scor General: [scor]
+      let finalPrompt;
+      if (jobDescription) {
+        const criteria = getEvaluationCriteria();
+        finalPrompt = `${prompt}\n\nJOB DESCRIPTION:\n${jobDescription}\n\nTe rog să evaluezi candidatul pe baza următoarelor criterii:\n\n`;
+        
+        criteria.forEach((criterion, index) => {
+          finalPrompt += `${index + 1}. ${criterion.title} (0-100):\n${criterion.prompt}\n\n`;
+        });
+        
+        finalPrompt += `Răspunde strict în următorul format:
+${criteria[0].title}: [scor]
+${criteria[1].title}: [scor]
+${criteria[2].title}: [scor]
 Recomandări:
 - [recomandare 1]
 - [recomandare 2]
-- [recomandare 3]` : prompt;
+- [recomandare 3]`;
+      } else {
+        finalPrompt = prompt;
+      }
 
       const payload = {
         'contents': [{
@@ -673,25 +719,26 @@ Recomandări:
   }
 }
 
-// Response parsing
+// Update parseGeminiResponse to handle dynamic criteria
 function parseGeminiResponse(response) {
   const content = response.candidates[0].content.parts[0].text;
+  const criteria = getEvaluationCriteria();
   
   const data = {
-    technicalScore: 0,
-    experienceScore: 0,
-    overallScore: 0,
+    criteriaScores: [],
     recommendations: []
   };
 
-  // Extract scores
-  const technicalMatch = content.match(/Evaluare Tehnică:\s*(\d+)/);
-  const experienceMatch = content.match(/Evaluare Experiență:\s*(\d+)/);
-  const overallMatch = content.match(/Scor General:\s*(\d+)/);
-  
-  if (technicalMatch) data.technicalScore = parseInt(technicalMatch[1]);
-  if (experienceMatch) data.experienceScore = parseInt(experienceMatch[1]);
-  if (overallMatch) data.overallScore = parseInt(overallMatch[1]);
+  // Extract scores for each criterion
+  criteria.forEach(criterion => {
+    const scoreMatch = content.match(new RegExp(`${criterion.title}:\\s*(\\d+)`));
+    if (scoreMatch) {
+      data.criteriaScores.push({
+        title: criterion.title,
+        score: parseInt(scoreMatch[1])
+      });
+    }
+  });
 
   // Extract recommendations
   const recommendationsMatch = content.match(/Recomandări:[\s\S]*?(?=-\s.*[\s\S]*?){1,3}/g);
@@ -739,21 +786,22 @@ function testColumnCalculations() {
   }
 }
 
-// Sheet update function
+// Update the sheet update function to handle the new format
 function updateSheet(rowIndex, data) {
   const sheet = SpreadsheetApp.getActiveSheet();
   
-  // Update scores
-  sheet.getRange(rowIndex, columnToNumber(OUTPUT_COLUMNS.TECHNICAL_SCORE)).setValue(data.technicalScore);
-  sheet.getRange(rowIndex, columnToNumber(OUTPUT_COLUMNS.EXPERIENCE_SCORE)).setValue(data.experienceScore);
-  sheet.getRange(rowIndex, columnToNumber(OUTPUT_COLUMNS.OVERALL_SCORE)).setValue(data.overallScore);
+  // Update scores for each criterion
+  data.criteriaScores.forEach((criteriaScore, index) => {
+    const column = Object.values(OUTPUT_COLUMNS)[index]; // Get the corresponding output column
+    sheet.getRange(rowIndex, columnToNumber(column)).setValue(criteriaScore.score);
+  });
   
   // Update recommendations
   sheet.getRange(rowIndex, columnToNumber(OUTPUT_COLUMNS.RECOMMENDATIONS))
     .setValue(data.recommendations.join('\n'));
 
   // Update status/conclusions
-  const conclusion = `Evaluare completă - Scor tehnic: ${data.technicalScore}, Experiență: ${data.experienceScore}, General: ${data.overallScore}`;
+  const conclusion = `Evaluare completă - ${data.criteriaScores.map(c => `${c.title}: ${c.score}`).join(', ')}`;
   sheet.getRange(rowIndex, columnToNumber(OUTPUT_COLUMNS.STATUS)).setValue(conclusion);
 }
 
@@ -763,9 +811,9 @@ function isProfileProcessed(rowIndex) {
   
   // Get only the three score columns (Technical, Experience, Overall)
   const scoreColumns = [
-    OUTPUT_COLUMNS.TECHNICAL_SCORE,
-    OUTPUT_COLUMNS.EXPERIENCE_SCORE,
-    OUTPUT_COLUMNS.OVERALL_SCORE
+    OUTPUT_COLUMNS.CRITERIA_1_SCORE,
+    OUTPUT_COLUMNS.CRITERIA_2_SCORE,
+    OUTPUT_COLUMNS.CRITERIA_3_SCORE
   ];
   
   // Log the actual column letters we're checking
