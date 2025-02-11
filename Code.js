@@ -573,18 +573,20 @@ PROFIL CANDIDAT:
  * then sends it to the Gemini API. It logs the full prompt and payload sent to the LLM and the complete response.
  * Implements a retry mechanism in case of API failures or rate limiting.
  *
- * @param {string} profileData - The formatted candidate profile data.
- * @param {string} jobDescription - The job description used to evaluate the candidate.
+ * @param {string} prompt - The prompt to send to the API
+ * @param {string} jobDescription - The job description (only used for profile evaluation, not for criteria extraction)
  * @returns {Object} - The parsed JSON response from the Gemini API.
  * @throws Will throw an error if the maximum number of retries is exhausted.
  */
-function callGeminiAPI(profileData, jobDescription) {
+function callGeminiAPI(prompt, jobDescription) {
   const maxRetries = 3;
   const retryDelay = 2000;
 
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
-      const prompt = `${profileData}\n\nJOB DESCRIPTION:\n${jobDescription}\n\nTe rog să evaluezi și să furnizezi următoarele:
+      // Only add the evaluation part if we're evaluating a profile (when jobDescription is not empty)
+      const finalPrompt = jobDescription ? 
+        `${prompt}\n\nJOB DESCRIPTION:\n${jobDescription}\n\nTe rog să evaluezi și să furnizezi următoarele:
 1. Evaluare Tehnică (0-100): Evaluează potrivirea competențelor tehnice cu cerințele job-ului
 2. Evaluare Experiență (0-100): Evaluează relevanța experienței profesionale
 3. Scor General (0-100): Calculează compatibilitatea generală
@@ -597,12 +599,12 @@ Scor General: [scor]
 Recomandări:
 - [recomandare 1]
 - [recomandare 2]
-- [recomandare 3]`;
+- [recomandare 3]` : prompt;
 
       const payload = {
         'contents': [{
           'parts': [{
-            'text': prompt
+            'text': finalPrompt
           }]
         }],
         'model': 'gemini-1.5-flash',
@@ -635,7 +637,7 @@ Recomandări:
       if (responseCode === 200) {
         const conclusions = responseData.candidates[0].content.parts[0].text;
         logLLMInteraction(
-          prompt,
+          finalPrompt,
           responseText,
           conclusions,
           'INFO',
@@ -643,7 +645,7 @@ Recomandări:
         );
       } else {
         logLLMInteraction(
-          prompt,
+          finalPrompt,
           responseText,
           `Error: Response code ${responseCode}`,
           'ERROR',
@@ -772,224 +774,4 @@ function isProfileProcessed(rowIndex) {
     'DEBUG',
     `Checking columns: ${scoreColumns.join(', ')}`
   );
-  
-  // Check each score column
-  const values = {};
-  for (const column of scoreColumns) {
-    const columnIndex = columnToNumber(column);
-    const value = sheet.getRange(rowIndex, columnIndex).getValue();
-    values[column] = value;
-    
-    logToSheet(
-      `Checking column ${column} for row ${rowIndex}`,
-      'DEBUG',
-      `Value found: "${value}" (${typeof value})`
-    );
-    
-    if (value === '' || value === null || value === undefined) {
-      logToSheet(
-        `Row ${rowIndex} is NOT processed`,
-        'DEBUG',
-        `Column ${column} is empty`
-      );
-      return false;
-    }
-  }
-  
-  logToSheet(
-    `Row ${rowIndex} is processed`,
-    'DEBUG',
-    `Values found: ${JSON.stringify(values)}`
-  );
-  
-  return true;
-}
-
-// Get Job Description
-function getJobDescription() {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const jobDescSheet = ss.getSheetByName(JOB_DESCRIPTION_SHEET);
-  if (!jobDescSheet) return null;
-  return jobDescSheet.getRange('B2').getValue();
-}
-
-// Validation function
-function validateStructure() {
-  const sheet = SpreadsheetApp.getActiveSheet();
-  const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
-  
-  const requiredColumns = [
-    'companyIndustry',
-    'companyName',
-    'linkedinHeadline',
-    'linkedinJobDateRange',
-    'linkedinJobTitle',
-    'linkedinPreviousJobDateRange',
-    'linkedinPreviousJobTitle',
-    'linkedinSkillsLabel',
-    'location',
-    'previousCompanyName',
-    'linkedinSchoolDegree',
-    'linkedinSchoolName',
-    'linkedinPreviousSchoolDateRange',
-    'linkedinPreviousSchoolDegree',
-    'linkedinPreviousSchoolName',
-    'linkedinSchoolDateRange',
-    'linkedinDescription',
-    'linkedinPreviousJobDescription',
-    'linkedinSchoolDescription',
-    'linkedinJobDescription',
-    'linkedinPreviousSchoolDescription'
-  ];
-
-  const missingColumns = requiredColumns.filter(col => 
-    !headers.some(h => h.toString().toLowerCase() === col.toLowerCase())
-  );
-
-  if (missingColumns.length > 0) {
-    SpreadsheetApp.getUi().alert(
-      'Eroare de structură: Lipsesc următoarele coloane: ' + missingColumns.join(', ')
-    );
-    return false;
-  }
-
-  if (!GEMINI_API_KEY) {
-    SpreadsheetApp.getUi().alert(
-      'Eroare: API Key-ul Google Gemini nu este configurat!'
-    );
-    return false;
-  }
-
-  if (!getJobDescription()) {
-    SpreadsheetApp.getUi().alert(
-      'Eroare: Job Description-ul nu este configurat!'
-    );
-    return false;
-  }
-
-  return true;
-}
-
-// Update the getColumnByName function to use the mapping
-function getColumnByName(columnName) {
-  const column = COLUMN_MAPPING[columnName];
-  if (!column) {
-    logToSheet(
-      'Column mapping not found', 
-      'ERROR', 
-      `No mapping found for column: ${columnName}`
-    );
-    return -1;
-  }
-  return columnToNumber(column);
-}
-
-// Error logging
-function logError(error, rowIndex) {
-  const errorMessage = `Error processing row ${rowIndex}: ${error.message}`;
-  console.error(errorMessage);
-  logToSheet(errorMessage, 'ERROR');
-  
-  const sheet = SpreadsheetApp.getActiveSheet();
-  const errorDetails = error.message.includes('code') ? error.message : 'Error: ' + error.message;
-  
-  // Update status column only
-  sheet.getRange(rowIndex, columnToNumber(OUTPUT_COLUMNS.STATUS)).setValue(errorDetails);
-}
-
-// Add this after the onOpen function
-function setupOutputColumns() {
-  const sheet = SpreadsheetApp.getActiveSheet();
-  const headers = {
-    'AV': 'Evaluare Tehnică',
-    'AW': 'Evaluare Experiență',
-    'AX': 'Scor General',
-    'AY': 'Recomandări',
-    'AZ': 'Status'
-  };
-  
-  // Set each header
-  for (const [col, header] of Object.entries(headers)) {
-    const cell = sheet.getRange(`${col}1`);
-    if (cell.getValue() === '') {
-      cell.setValue(header);
-    }
-  }
-}
-
-// Profile data validation
-function validateProfileData(profileData) {
-  // Essential fields that must have a value for basic profile evaluation
-  const essentialFields = [
-    'linkedinJobTitle'
-  ];
-
-  // Optional fields that can be empty but should be sanitized
-  const optionalFields = [
-    'companyIndustry',
-    'companyName',
-    'linkedinHeadline',
-    'linkedinJobDateRange',
-    'linkedinPreviousJobDateRange',
-    'linkedinPreviousJobTitle',
-    'linkedinSkillsLabel',
-    'location',
-    'previousCompanyName',
-    'linkedinSchoolDegree',
-    'linkedinSchoolName',
-    'linkedinPreviousSchoolDateRange',
-    'linkedinPreviousSchoolDegree',
-    'linkedinPreviousSchoolName',
-    'linkedinSchoolDateRange',
-    'linkedinDescription',
-    'linkedinPreviousJobDescription',
-    'linkedinSchoolDescription',
-    'linkedinJobDescription',
-    'linkedinPreviousSchoolDescription'
-  ];
-
-  // Check essential fields
-  const missingEssentialFields = essentialFields.filter(field => {
-    const value = profileData[field];
-    return value === undefined || value === null || value.toString().trim() === '';
-  });
-
-  // Log missing essential fields
-  if (missingEssentialFields.length > 0) {
-    logToSheet(
-      'Missing essential profile data fields', 
-      'WARNING', 
-      `Missing essential fields: ${missingEssentialFields.join(', ')}`
-    );
-    return false;
-  }
-
-  // Check and log missing optional fields
-  const missingOptionalFields = optionalFields.filter(field => {
-    const value = profileData[field];
-    return value === undefined || value === null || value.toString().trim() === '';
-  });
-
-  if (missingOptionalFields.length > 0) {
-    logToSheet(
-      'Missing optional profile data fields', 
-      'INFO', 
-      `Missing optional fields: ${missingOptionalFields.join(', ')}`
-    );
-  }
-
-  // Sanitize the profile data by replacing missing optional fields with "N/A"
-  sanitizeProfileData(profileData, optionalFields);
-
-  return true;
-}
-
-// Function to sanitize profile data by replacing missing values with "N/A"
-function sanitizeProfileData(profileData, optionalFields) {
-  optionalFields.forEach(field => {
-    const value = profileData[field];
-    if (value === undefined || value === null || value.toString().trim() === '') {
-      profileData[field] = 'N/A';
-    }
-  });
 }
