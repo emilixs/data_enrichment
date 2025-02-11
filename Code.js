@@ -957,3 +957,17 @@ function setupOutputColumns() {
     throw new Error('Nu am putut configura coloanele de output: ' + error.message);
   }
 }
+
+/**
+ * Gets the column number for a given column name using the COLUMN_MAPPING
+ * @param {string} columnName - The name of the column as defined in COLUMN_MAPPING
+ * @returns {number} The column number (1-based)
+ * @throws {Error} If the column name is not found in the mapping
+ */
+function getColumnByName(columnName) {
+  const columnLetter = COLUMN_MAPPING[columnName];
+  if (!columnLetter) {
+    throw new Error(`Column name "${columnName}" not found in column mapping`);
+  }
+  return columnToNumber(columnLetter);
+}
