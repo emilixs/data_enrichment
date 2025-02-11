@@ -971,3 +971,71 @@ function getColumnByName(columnName) {
   }
   return columnToNumber(columnLetter);
 }
+
+/**
+ * Validates the profile data before processing
+ * Checks for required fields and proper formatting
+ * @param {Object} profileData - The profile data object to validate
+ * @returns {boolean} true if profile data is valid, false otherwise
+ */
+function validateProfileData(profileData) {
+  try {
+    // Check if linkedinJobTitle exists (our only required field)
+    if (!profileData.linkedinJobTitle) {
+      logToSheet('Profile validation failed', 'WARNING', 'Missing required field: linkedinJobTitle');
+      return false;
+    }
+
+    // Optional fields validation - we don't fail validation for these,
+    // but we log warnings for debugging purposes
+    const optionalFields = [
+      'companyIndustry',
+      'companyName',
+      'linkedinHeadline',
+      'linkedinJobDateRange',
+      'linkedinPreviousJobTitle',
+      'linkedinSkillsLabel',
+      'location',
+      'previousCompanyName',
+      'linkedinSchoolDegree',
+      'linkedinSchoolName',
+      'linkedinDescription',
+      'linkedinJobDescription'
+    ];
+
+    const missingOptionalFields = optionalFields.filter(field => !profileData[field]);
+    if (missingOptionalFields.length > 0) {
+      logToSheet(
+        'Missing optional fields',
+        'INFO',
+        `The following optional fields are missing: ${missingOptionalFields.join(', ')}`
+      );
+    }
+
+    // Validate date ranges format if they exist
+    const dateRangeFields = [
+      'linkedinJobDateRange',
+      'linkedinPreviousJobDateRange',
+      'linkedinSchoolDateRange',
+      'linkedinPreviousSchoolDateRange'
+    ];
+
+    dateRangeFields.forEach(field => {
+      if (profileData[field] && typeof profileData[field] === 'string') {
+        // Basic date range format check (just ensure it's not obviously invalid)
+        if (!profileData[field].includes('-') && !profileData[field].toLowerCase().includes('present')) {
+          logToSheet(
+            'Invalid date range format',
+            'WARNING',
+            `Field ${field} has potentially invalid format: ${profileData[field]}`
+          );
+        }
+      }
+    });
+
+    return true;
+  } catch (error) {
+    logToSheet('Profile validation error', 'ERROR', error.message);
+    return false;
+  }
+}
