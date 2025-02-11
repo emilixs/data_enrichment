@@ -905,3 +905,55 @@ function columnToLetter(column) {
   }
   return letter;
 }
+
+/**
+ * Sets up the output columns with proper headers based on evaluation criteria
+ * Creates or updates headers for score columns, recommendations, and status
+ */
+function setupOutputColumns() {
+  const sheet = SpreadsheetApp.getActiveSheet();
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  
+  try {
+    // Try to get criteria titles from the criteria sheet
+    let criteriaTitles = [];
+    const criteriaSheet = ss.getSheetByName(CRITERIA_SHEET_NAME);
+    if (criteriaSheet) {
+      criteriaTitles = criteriaSheet.getRange(1, 1, 1, 3).getValues()[0];
+    }
+    
+    // Set up headers for all output columns
+    const outputColumns = Object.values(OUTPUT_COLUMNS);
+    outputColumns.forEach((col, index) => {
+      const cell = sheet.getRange(`${col}1`);
+      let headerValue;
+      
+      if (index < 3) { // First three columns are for criteria scores
+        headerValue = criteriaTitles[index] || `Criteriu ${index + 1}`;
+      } else if (index === 3) {
+        headerValue = 'Recomandări';
+      } else {
+        headerValue = 'Status';
+      }
+      
+      cell.setValue(headerValue);
+    });
+    
+    // Format headers
+    const headerRange = sheet.getRange('1:1');
+    headerRange.setFontWeight('bold');
+    headerRange.setBackground('#f3f3f3');
+    
+    // Auto-resize columns to fit content
+    outputColumns.forEach(col => {
+      sheet.autoResizeColumn(columnToNumber(col));
+    });
+    
+    logToSheet('Output columns setup completed', 'INFO', 
+      `Set up headers for columns: ${outputColumns.join(', ')}`);
+      
+  } catch (error) {
+    logToSheet('Failed to setup output columns', 'ERROR', error.message);
+    throw new Error('Nu am putut configura coloanele de output: ' + error.message);
+  }
+}
