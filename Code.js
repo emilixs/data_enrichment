@@ -12,7 +12,7 @@ const OUTPUT_COLUMNS = {
 
 const CRITERIA_SHEET_NAME = 'Criterii Evaluare CV';
 const CRITERIA_PROMPT = `Analizează următorul job description și extrage cele 3 criterii cele mai importante pentru evaluarea candidaților.
-Pentru fiecare criteriu, oferă un titlu și o descriere detaliată cu exemple concrete.
+Pentru fiecare criteriu, oferă un titlu și o descriere detaliată cu exemple concrete, acestea vor fi formulate ca si prompturi pentru identificarea parametrilor respectivi in CV-uri.
 
 Job Description:
 [JOB_DESCRIPTION]
@@ -20,15 +20,15 @@ Job Description:
 Răspunde strict în următorul format:
 Criteriu 1:
 Titlu: [titlu]
-Descriere: [descriere detaliată cu exemple]
+Prompt: [descriere detaliată cu exemple]
 
 Criteriu 2:
 Titlu: [titlu]
-Descriere: [descriere detaliată cu exemple]
+Prompt: [descriere detaliată cu exemple]
 
 Criteriu 3:
 Titlu: [titlu]
-Descriere: [descriere detaliată cu exemple]`;
+Prompt: [descriere detaliată cu exemple]`;
 
 // Add this at the top with other constants
 const COLUMN_MAPPING = {
