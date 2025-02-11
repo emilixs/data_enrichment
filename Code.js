@@ -14,6 +14,7 @@ const CRITERIA_SHEET_NAME = 'Criterii Evaluare CV';
 const CRITERIA_PROMPT = `Analizează următorul job description și extrage cele 3 criterii cele mai importante pentru evaluarea candidaților.
 Pentru fiecare criteriu, oferă un titlu și o descriere detaliată cu exemple concrete, acestea vor fi formulate ca si prompturi pentru identificarea parametrilor respectivi in CV-uri, te rog criteriile sa fie doar lucruri pe care te astepti sa le poti evalua in CV-uri.
 Prompturile pentru fiecare criteriu sa fie specifice cu exemple de ce inseamna 0,30,60,90,100 ca si scor.
+
 Job Description:
 [JOB_DESCRIPTION]
 
@@ -338,7 +339,7 @@ function parseJobDescriptionForCriteria(jobDescription) {
 
     // Parse the response into structured criteria
     const criteria = [];
-    const criteriaMatches = content.match(/Criteriu \d+:\nTitlu: (.*?)\nDescriere: (.*?)(?=\n\nCriteriu|\n*$)/gs);
+    const criteriaMatches = content.match(/Criteriu \d+:\nTitlu: (.*?)\nPrompt: (.*?)(?=\n\nCriteriu|\n*$)/gs);
 
     if (!criteriaMatches || criteriaMatches.length !== 3) {
       throw new Error('Invalid criteria format in API response');
@@ -346,19 +347,19 @@ function parseJobDescriptionForCriteria(jobDescription) {
 
     criteriaMatches.forEach((match, index) => {
       const titleMatch = match.match(/Titlu: (.*?)\n/);
-      const descriptionMatch = match.match(/Descriere: (.*?)$/s);
+      const promptMatch = match.match(/Prompt: (.*?)$/s);
 
-      if (titleMatch && descriptionMatch) {
+      if (titleMatch && promptMatch) {
         criteria.push({
           title: titleMatch[1].trim(),
-          description: descriptionMatch[1].trim()
+          description: promptMatch[1].trim()
         });
         
         // Log each extracted criterion
         logToSheet(
           'Extracted criterion',
           'DEBUG',
-          `Criterion ${index + 1}: Title="${titleMatch[1].trim()}", Description="${descriptionMatch[1].trim()}"`
+          `Criterion ${index + 1}: Title="${titleMatch[1].trim()}", Prompt="${promptMatch[1].trim()}"`
         );
       }
     });
