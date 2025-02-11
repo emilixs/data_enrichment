@@ -191,6 +191,42 @@ function onOpen() {
   setupOutputColumns();
 }
 
+/**
+ * Extract content from a Google Docs URL
+ * @param {string} url - The Google Docs URL
+ * @returns {string} The document's content
+ * @throws {Error} If the document cannot be accessed or URL is invalid
+ */
+function extractGoogleDocsContent(url) {
+  try {
+    // Extract the document ID from the URL
+    const regex = /\/d\/([a-zA-Z0-9-_]+)/;
+    const match = url.match(regex);
+    
+    if (!match) {
+      throw new Error('URL invalid. Vă rugăm să folosiți un URL valid de Google Docs.');
+    }
+    
+    const docId = match[1];
+    
+    // Try to open the document
+    try {
+      const doc = DocumentApp.openByUrl(url);
+      return doc.getBody().getText();
+    } catch (e) {
+      // If that fails, try using the advanced Drive API
+      const file = DriveApp.getFileById(docId);
+      const content = file.getBlob().getDataAsString();
+      
+      // Clean up any HTML/formatting if present
+      return content.replace(/<[^>]*>/g, '').trim();
+    }
+  } catch (error) {
+    logToSheet('Failed to extract Google Docs content', 'ERROR', error.message);
+    throw new Error('Nu am putut accesa documentul. Verificați că URL-ul este corect și că documentul este partajat pentru acces.');
+  }
+}
+
 // Job Description Configuration with criteria extraction
 function configureJobDescription() {
   const ui = SpreadsheetApp.getUi();
@@ -204,50 +240,59 @@ function configureJobDescription() {
   
   const response = ui.prompt(
     'Configurare Job Description',
-    'Introduceți descrierea job-ului pentru evaluarea profilelor (nu introduceți un URL, ci textul efectiv al descrierii):',
+    'Introduceți URL-ul documentului Google Docs care conține descrierea job-ului:',
     ui.ButtonSet.OK_CANCEL);
 
   if (response.getSelectedButton() == ui.Button.OK) {
-    let jobDescription = response.getResponseText().trim();
+    const url = response.getResponseText().trim();
     
-    // Check if input looks like a URL
-    if (jobDescription.startsWith('http') || jobDescription.includes('docs.google.com')) {
+    // Basic URL validation
+    if (!url.includes('docs.google.com/')) {
       ui.alert(
         'Eroare',
-        'Vă rugăm să introduceți textul descrierii job-ului, nu un URL. Copiați și lipiți conținutul documentului.',
-        ui.ButtonSet.OK
-      );
-      return;
-    }
-    
-    // Validate job description is not empty
-    if (!jobDescription) {
-      ui.alert(
-        'Eroare',
-        'Descrierea job-ului nu poate fi goală.',
+        'URL-ul trebuie să fie un document Google Docs valid.',
         ui.ButtonSet.OK
       );
       return;
     }
 
-    // Store the job description
-    jobDescSheet.getRange('A2').setValue(jobDescription);
-    
-    // Log the stored job description for verification
-    logToSheet(
-      'Job Description stored',
-      'INFO',
-      `Content length: ${jobDescription.length} characters\nFirst 100 chars: ${jobDescription.substring(0, 100)}...`
-    );
-    
-    // Extract and update evaluation criteria
     try {
-      const criteria = parseJobDescriptionForCriteria(jobDescription);
-      updateEvaluationCriteria(criteria);
-      ui.alert('Job Description și criteriile de evaluare au fost salvate cu succes!');
+      // Extract content from Google Docs
+      const jobDescription = extractGoogleDocsContent(url);
+      
+      // Validate job description is not empty
+      if (!jobDescription) {
+        ui.alert(
+          'Eroare',
+          'Documentul este gol sau nu conține text valid.',
+          ui.ButtonSet.OK
+        );
+        return;
+      }
+
+      // Store both the URL and the content
+      jobDescSheet.getRange('A2').setValue(url);
+      jobDescSheet.getRange('B2').setValue(jobDescription);
+      
+      // Log the stored job description for verification
+      logToSheet(
+        'Job Description stored',
+        'INFO',
+        `URL: ${url}\nContent length: ${jobDescription.length} characters\nFirst 100 chars: ${jobDescription.substring(0, 100)}...`
+      );
+      
+      // Extract and update evaluation criteria
+      try {
+        const criteria = parseJobDescriptionForCriteria(jobDescription);
+        updateEvaluationCriteria(criteria);
+        ui.alert('Job Description și criteriile de evaluare au fost salvate cu succes!');
+      } catch (error) {
+        logToSheet('Error extracting criteria', 'ERROR', error.message);
+        ui.alert('Job Description salvat, dar a apărut o eroare la extragerea criteriilor. Verificați log-urile pentru detalii.');
+      }
     } catch (error) {
-      logToSheet('Error extracting criteria', 'ERROR', error.message);
-      ui.alert('Job Description salvat, dar a apărut o eroare la extragerea criteriilor. Verificați log-urile pentru detalii.');
+      logToSheet('Error configuring job description', 'ERROR', error.message);
+      ui.alert('Eroare', error.message, ui.ButtonSet.OK);
     }
   }
 }
@@ -764,7 +809,7 @@ function getJobDescription() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const jobDescSheet = ss.getSheetByName(JOB_DESCRIPTION_SHEET);
   if (!jobDescSheet) return null;
-  return jobDescSheet.getRange('A2').getValue();
+  return jobDescSheet.getRange('B2').getValue();
 }
 
 // Validation function
