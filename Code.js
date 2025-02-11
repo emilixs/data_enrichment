@@ -12,8 +12,8 @@ const OUTPUT_COLUMNS = {
 
 const CRITERIA_SHEET_NAME = 'Criterii Evaluare CV';
 const CRITERIA_PROMPT = `Analizează următorul job description și extrage cele 3 criterii cele mai importante pentru evaluarea candidaților.
-Pentru fiecare criteriu, oferă un titlu și o descriere detaliată cu exemple concrete, acestea vor fi formulate ca si prompturi pentru identificarea parametrilor respectivi in CV-uri.
-
+Pentru fiecare criteriu, oferă un titlu și o descriere detaliată cu exemple concrete, acestea vor fi formulate ca si prompturi pentru identificarea parametrilor respectivi in CV-uri, te rog criteriile sa fie doar lucruri pe care te astepti sa le poti evalua in CV-uri.
+Prompturile pentru fiecare criteriu sa fie specifice cu exemple de ce inseamna 0,30,60,90,100 ca si scor.
 Job Description:
 [JOB_DESCRIPTION]
 
