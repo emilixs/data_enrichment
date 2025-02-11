@@ -823,3 +823,85 @@ function isProfileProcessed(rowIndex) {
     `Checking columns: ${scoreColumns.join(', ')}`
   );
 }
+
+/**
+ * Validates the structure of the active sheet and required sheets
+ * Checks for required columns and sheets
+ * @returns {boolean} true if structure is valid, false otherwise
+ */
+function validateStructure() {
+  const ui = SpreadsheetApp.getUi();
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  
+  try {
+    // Check if Job Description sheet exists and has content
+    const jobDescSheet = ss.getSheetByName(JOB_DESCRIPTION_SHEET);
+    if (!jobDescSheet) {
+      ui.alert('Error', 'Sheet-ul "Job Description" nu există. Configurați mai întâi job description-ul.', ui.ButtonSet.OK);
+      return false;
+    }
+    
+    // Check if Criteria sheet exists and has content
+    const criteriaSheet = ss.getSheetByName(CRITERIA_SHEET_NAME);
+    if (!criteriaSheet) {
+      ui.alert('Error', 'Sheet-ul "Criterii Evaluare CV" nu există. Configurați mai întâi job description-ul.', ui.ButtonSet.OK);
+      return false;
+    }
+    
+    // Verify criteria sheet has 3 columns with titles and prompts
+    const criteriaRange = criteriaSheet.getRange(1, 1, 2, 3);
+    const criteriaValues = criteriaRange.getValues();
+    if (criteriaValues[0].some(title => !title) || criteriaValues[1].some(prompt => !prompt)) {
+      ui.alert('Error', 'Sheet-ul "Criterii Evaluare CV" nu este configurat corect. Lipsesc titluri sau prompturi pentru criterii.', ui.ButtonSet.OK);
+      return false;
+    }
+    
+    // Check if all required input columns exist in the active sheet
+    const sheet = SpreadsheetApp.getActiveSheet();
+    const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+    
+    // Essential columns that must exist
+    const essentialColumns = ['linkedinJobTitle'];
+    const missingColumns = essentialColumns.filter(col => !headers.includes(col));
+    
+    if (missingColumns.length > 0) {
+      ui.alert('Error', `Lipsesc coloanele esențiale: ${missingColumns.join(', ')}`, ui.ButtonSet.OK);
+      return false;
+    }
+    
+    // Check if output columns exist and are properly set up
+    const outputColumnLetters = Object.values(OUTPUT_COLUMNS);
+    const lastColumn = sheet.getLastColumn();
+    const lastColumnLetter = columnToLetter(lastColumn);
+    
+    const missingOutputColumns = outputColumnLetters.filter(col => 
+      columnToNumber(col) > lastColumn || 
+      !sheet.getRange(`${col}1`).getValue()
+    );
+    
+    if (missingOutputColumns.length > 0) {
+      setupOutputColumns(); // Attempt to set up missing output columns
+    }
+    
+    return true;
+  } catch (error) {
+    logToSheet('Structure validation failed', 'ERROR', error.message);
+    ui.alert('Error', 'A apărut o eroare la validarea structurii: ' + error.message, ui.ButtonSet.OK);
+    return false;
+  }
+}
+
+/**
+ * Converts a column number to letter reference
+ * @param {number} column - The column number
+ * @returns {string} The column letter reference
+ */
+function columnToLetter(column) {
+  let temp, letter = '';
+  while (column > 0) {
+    temp = (column - 1) % 26;
+    letter = String.fromCharCode(temp + 65) + letter;
+    column = (column - temp - 1) / 26;
+  }
+  return letter;
+}
