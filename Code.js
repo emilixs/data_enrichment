@@ -707,13 +707,17 @@ function setupOutputColumns() {
 
 // Profile data validation
 function validateProfileData(profileData) {
-  // Required fields that must have a value
-  const requiredFields = [
+  // Essential fields that must have a value for basic profile evaluation
+  const essentialFields = [
+    'linkedinJobTitle'
+  ];
+
+  // Optional fields that can be empty but should be sanitized
+  const optionalFields = [
     'companyIndustry',
     'companyName',
     'linkedinHeadline',
     'linkedinJobDateRange',
-    'linkedinJobTitle',
     'linkedinPreviousJobDateRange',
     'linkedinPreviousJobTitle',
     'linkedinSkillsLabel',
@@ -732,20 +736,48 @@ function validateProfileData(profileData) {
     'linkedinPreviousSchoolDescription'
   ];
 
-  // Check if all required fields have a value
-  const missingFields = requiredFields.filter(field => {
+  // Check essential fields
+  const missingEssentialFields = essentialFields.filter(field => {
     const value = profileData[field];
     return value === undefined || value === null || value.toString().trim() === '';
   });
 
-  if (missingFields.length > 0) {
+  // Log missing essential fields
+  if (missingEssentialFields.length > 0) {
     logToSheet(
-      'Missing required profile data fields', 
+      'Missing essential profile data fields', 
       'WARNING', 
-      `Missing fields: ${missingFields.join(', ')}`
+      `Missing essential fields: ${missingEssentialFields.join(', ')}`
     );
     return false;
   }
 
+  // Check and log missing optional fields
+  const missingOptionalFields = optionalFields.filter(field => {
+    const value = profileData[field];
+    return value === undefined || value === null || value.toString().trim() === '';
+  });
+
+  if (missingOptionalFields.length > 0) {
+    logToSheet(
+      'Missing optional profile data fields', 
+      'INFO', 
+      `Missing optional fields: ${missingOptionalFields.join(', ')}`
+    );
+  }
+
+  // Sanitize the profile data by replacing missing optional fields with "N/A"
+  sanitizeProfileData(profileData, optionalFields);
+
   return true;
+}
+
+// Function to sanitize profile data by replacing missing values with "N/A"
+function sanitizeProfileData(profileData, optionalFields) {
+  optionalFields.forEach(field => {
+    const value = profileData[field];
+    if (value === undefined || value === null || value.toString().trim() === '') {
+      profileData[field] = 'N/A';
+    }
+  });
 }
