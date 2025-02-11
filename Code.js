@@ -10,6 +10,26 @@ const OUTPUT_COLUMNS = {
   STATUS: 'AZ'           // Column 52
 };
 
+const CRITERIA_SHEET_NAME = 'Criterii Evaluare CV';
+const CRITERIA_PROMPT = `Analizează următorul job description și extrage cele 3 criterii cele mai importante pentru evaluarea candidaților.
+Pentru fiecare criteriu, oferă un titlu și o descriere detaliată cu exemple concrete.
+
+Job Description:
+[JOB_DESCRIPTION]
+
+Răspunde strict în următorul format:
+Criteriu 1:
+Titlu: [titlu]
+Descriere: [descriere detaliată cu exemple]
+
+Criteriu 2:
+Titlu: [titlu]
+Descriere: [descriere detaliată cu exemple]
+
+Criteriu 3:
+Titlu: [titlu]
+Descriere: [descriere detaliată cu exemple]`;
+
 // Add this at the top with other constants
 const COLUMN_MAPPING = {
   'companyIndustry': 'A',
@@ -171,7 +191,7 @@ function onOpen() {
   setupOutputColumns();
 }
 
-// Job Description Configuration
+// Job Description Configuration with criteria extraction
 function configureJobDescription() {
   const ui = SpreadsheetApp.getUi();
   const ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -188,9 +208,89 @@ function configureJobDescription() {
     ui.ButtonSet.OK_CANCEL);
 
   if (response.getSelectedButton() == ui.Button.OK) {
-    jobDescSheet.getRange('A2').setValue(response.getResponseText());
-    ui.alert('Job Description salvat cu succes!');
+    const jobDescription = response.getResponseText();
+    jobDescSheet.getRange('A2').setValue(jobDescription);
+    
+    // Extract and update evaluation criteria
+    try {
+      const criteria = parseJobDescriptionForCriteria(jobDescription);
+      updateEvaluationCriteria(criteria);
+      ui.alert('Job Description și criteriile de evaluare au fost salvate cu succes!');
+    } catch (error) {
+      logToSheet('Error extracting criteria', 'ERROR', error.message);
+      ui.alert('Job Description salvat, dar a apărut o eroare la extragerea criteriilor. Verificați log-urile pentru detalii.');
+    }
   }
+}
+
+/**
+ * Parse job description to extract evaluation criteria using Gemini API
+ * @param {string} jobDescription - The job description text
+ * @returns {Array<Object>} Array of criteria objects with title and description
+ */
+function parseJobDescriptionForCriteria(jobDescription) {
+  const prompt = CRITERIA_PROMPT.replace('[JOB_DESCRIPTION]', jobDescription);
+  
+  try {
+    const response = callGeminiAPI(prompt, '');
+    const content = response.candidates[0].content.parts[0].text;
+    
+    // Parse the response into structured criteria
+    const criteria = [];
+    const criteriaMatches = content.match(/Criteriu \d+:\nTitlu: (.*?)\nDescriere: (.*?)(?=\n\nCriteriu|\n*$)/gs);
+    
+    if (!criteriaMatches || criteriaMatches.length !== 3) {
+      throw new Error('Invalid criteria format in API response');
+    }
+    
+    criteriaMatches.forEach(match => {
+      const titleMatch = match.match(/Titlu: (.*?)\n/);
+      const descriptionMatch = match.match(/Descriere: (.*?)$/s);
+      
+      if (titleMatch && descriptionMatch) {
+        criteria.push({
+          title: titleMatch[1].trim(),
+          description: descriptionMatch[1].trim()
+        });
+      }
+    });
+    
+    return criteria;
+  } catch (error) {
+    logToSheet('Failed to parse job description for criteria', 'ERROR', error.message);
+    throw error;
+  }
+}
+
+/**
+ * Update or create the evaluation criteria sheet with extracted criteria
+ * @param {Array<Object>} criteria - Array of criteria objects with title and description
+ */
+function updateEvaluationCriteria(criteria) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let criteriaSheet = ss.getSheetByName(CRITERIA_SHEET_NAME);
+  
+  // Create or clear the sheet
+  if (!criteriaSheet) {
+    criteriaSheet = ss.insertSheet(CRITERIA_SHEET_NAME);
+  } else {
+    criteriaSheet.clear();
+  }
+  
+  // Set up headers
+  const headers = criteria.map(c => c.title);
+  criteriaSheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+  
+  // Set up descriptions
+  const descriptions = criteria.map(c => c.description);
+  criteriaSheet.getRange(2, 1, 1, descriptions.length).setValues([descriptions]);
+  
+  // Format the sheet
+  criteriaSheet.setFrozenRows(1);
+  criteriaSheet.getRange(1, 1, 2, headers.length).setWrap(true);
+  criteriaSheet.autoResizeColumns(1, headers.length);
+  
+  logToSheet('Updated evaluation criteria', 'INFO', `Added ${criteria.length} criteria`);
 }
 
 // Reset Evaluations

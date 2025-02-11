@@ -116,7 +116,20 @@ Recomandări:
   - "Procesează Profile"
   - "Resetare Evaluări"
 
-### 3.2 Validări
+### 3.2 Analiză Job Description și Criterii de Evaluare
+- Detectare automată a modificărilor în Job Description
+- Extragere criterii de evaluare folosind Gemini API:
+  - Identificare automată a 3 criterii principale
+  - Generare descrieri și exemple pentru fiecare criteriu
+- Management Sheet Criterii de Evaluare:
+  - Nume sheet: "Criterii Evaluare CV"
+  - Structură:
+    - Rând 1: Titluri criterii (ex: "Competențe Tehnice", "Experiență", "Potrivire Culturală")
+    - Rând 2: Instrucțiuni evaluare și exemple
+  - Actualizare automată la modificarea Job Description
+  - Folosit ca referință în evaluarea candidaților
+
+### 3.3 Validări
 - Verificare structură coloane înainte de procesare
 - Verificare existență API key Gemini
 - Verificare existență job description configurat
@@ -149,7 +162,7 @@ Recomandări:
   - WARNING pentru câmpuri esențiale lipsă
   - INFO pentru câmpuri opționale lipsă
 
-### 3.3 Procesare Date
+### 3.4 Procesare Date
 1. Citire job description configurat
 2. Extragere date profil din coloanele specificate
 3. Generare prompt Gemini conform structurii definite
@@ -158,7 +171,7 @@ Recomandări:
    - Recomandări de îmbunătățire
 5. Salvare rezultate în coloanele de output
 
-### 3.4 Gestionare Erori
+### 3.5 Gestionare Erori
 - Profile procesate anterior: Opțiune de rescriere/skip
 - Date lipsă: Marcare în raport, continuare procesare
 - Erori API: Retry automat cu exponential backoff
@@ -212,38 +225,22 @@ function isProfileProcessed(rowIndex) {
 function resetEvaluations() {
     // Resetare rezultate evaluări anterioare
 }
+
+function parseJobDescriptionForCriteria(jobDescription) {
+    // Extragere criterii evaluare din job description folosind Gemini API
+    // Return: Array de obiecte cu title și description pentru fiecare criteriu
+}
+
+function updateEvaluationCriteria(criteria) {
+    // Actualizare/creare sheet criterii evaluare
+    // Populare cu titluri și descrieri
+}
+
+function onJobDescriptionChange() {
+    // Handler pentru modificări job description
+    // Trigger pentru actualizare criterii
+}
 ```
 
 ### 5.2 Funcții Utilitare
-```javascript
-function getApiKey() {
-    // Recuperare API key din variabile script
-}
-
-function logToSheet(message, level, details) {
-    // Logging operațiuni și erori
-}
-
-function validateProfileData(profileData) {
-    // Validare date profil înainte de procesare
-}
-
-function formatProfileData(rawData) {
-    // Formatare date pentru prompt
-}
 ```
-
-## 6. Securitate
-- API Key stocat în variabilele scriptului Google Apps
-- Acces limitat la foaia de calcul specificată
-- Validări pentru prevenirea suprascrierii accidentale
-- Protecție date personale conform GDPR
-- Logging securizat al operațiunilor
-
-## 7. Performanță
-- Procesare asincronă unde posibil
-- Caching job description
-- Gestionare eficientă rate limiting
-- Optimizare prompt pentru răspunsuri concise
-- Logging selectiv pentru debugging
-- Recuperare automată din erori 
