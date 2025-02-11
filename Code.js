@@ -229,24 +229,39 @@ function configureJobDescription() {
  * @returns {Array<Object>} Array of criteria objects with title and description
  */
 function parseJobDescriptionForCriteria(jobDescription) {
+  // Log the raw job description content being used for parsing
+  logToSheet(
+    'Parsing job description for criteria',
+    'DEBUG',
+    `Job Description content: ${jobDescription}`
+  );
+
+  // Replace the placeholder in the criteria prompt with the actual job description content
   const prompt = CRITERIA_PROMPT.replace('[JOB_DESCRIPTION]', jobDescription);
+
+  // Log the constructed prompt before sending it to Gemini API
+  logToSheet('Sending prompt for criteria extraction', 'DEBUG', `Prompt: ${prompt}`);
   
   try {
+    // Call Gemini API to extract criteria from the job description
     const response = callGeminiAPI(prompt, '');
     const content = response.candidates[0].content.parts[0].text;
-    
+
+    // Log the response content received from Gemini
+    logToSheet('Received response for criteria extraction', 'DEBUG', `Response content: ${content}`);
+
     // Parse the response into structured criteria
     const criteria = [];
     const criteriaMatches = content.match(/Criteriu \d+:\nTitlu: (.*?)\nDescriere: (.*?)(?=\n\nCriteriu|\n*$)/gs);
-    
+
     if (!criteriaMatches || criteriaMatches.length !== 3) {
       throw new Error('Invalid criteria format in API response');
     }
-    
+
     criteriaMatches.forEach(match => {
       const titleMatch = match.match(/Titlu: (.*?)\n/);
       const descriptionMatch = match.match(/Descriere: (.*?)$/s);
-      
+
       if (titleMatch && descriptionMatch) {
         criteria.push({
           title: titleMatch[1].trim(),
@@ -254,7 +269,10 @@ function parseJobDescriptionForCriteria(jobDescription) {
         });
       }
     });
-    
+
+    // Log the extracted criteria for debugging purposes
+    logToSheet('Extracted evaluation criteria', 'DEBUG', JSON.stringify(criteria));
+
     return criteria;
   } catch (error) {
     logToSheet('Failed to parse job description for criteria', 'ERROR', error.message);
