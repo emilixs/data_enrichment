@@ -204,12 +204,41 @@ function configureJobDescription() {
   
   const response = ui.prompt(
     'Configurare Job Description',
-    'Introduceți descrierea job-ului pentru evaluarea profilelor:',
+    'Introduceți descrierea job-ului pentru evaluarea profilelor (nu introduceți un URL, ci textul efectiv al descrierii):',
     ui.ButtonSet.OK_CANCEL);
 
   if (response.getSelectedButton() == ui.Button.OK) {
-    const jobDescription = response.getResponseText();
+    let jobDescription = response.getResponseText().trim();
+    
+    // Check if input looks like a URL
+    if (jobDescription.startsWith('http') || jobDescription.includes('docs.google.com')) {
+      ui.alert(
+        'Eroare',
+        'Vă rugăm să introduceți textul descrierii job-ului, nu un URL. Copiați și lipiți conținutul documentului.',
+        ui.ButtonSet.OK
+      );
+      return;
+    }
+    
+    // Validate job description is not empty
+    if (!jobDescription) {
+      ui.alert(
+        'Eroare',
+        'Descrierea job-ului nu poate fi goală.',
+        ui.ButtonSet.OK
+      );
+      return;
+    }
+
+    // Store the job description
     jobDescSheet.getRange('A2').setValue(jobDescription);
+    
+    // Log the stored job description for verification
+    logToSheet(
+      'Job Description stored',
+      'INFO',
+      `Content length: ${jobDescription.length} characters\nFirst 100 chars: ${jobDescription.substring(0, 100)}...`
+    );
     
     // Extract and update evaluation criteria
     try {
