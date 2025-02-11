@@ -236,15 +236,27 @@ function parseJobDescriptionForCriteria(jobDescription) {
     `Job Description content: ${jobDescription}`
   );
 
+  // Clean up the job description text
+  const cleanJobDescription = jobDescription.trim();
+  if (!cleanJobDescription) {
+    throw new Error('Job description is empty');
+  }
+
   // Replace the placeholder in the criteria prompt with the actual job description content
-  const prompt = CRITERIA_PROMPT.replace('[JOB_DESCRIPTION]', jobDescription);
+  const prompt = CRITERIA_PROMPT.replace('[JOB_DESCRIPTION]', cleanJobDescription);
 
   // Log the constructed prompt before sending it to Gemini API
   logToSheet('Sending prompt for criteria extraction', 'DEBUG', `Prompt: ${prompt}`);
   
   try {
-    // Call Gemini API to extract criteria from the job description
+    // Call Gemini API with the prompt that includes the actual job description text
     const response = callGeminiAPI(prompt, '');
+    
+    // Verify we got a valid response
+    if (!response?.candidates?.[0]?.content?.parts?.[0]?.text) {
+      throw new Error('Invalid response format from Gemini API');
+    }
+    
     const content = response.candidates[0].content.parts[0].text;
 
     // Log the response content received from Gemini
@@ -258,7 +270,7 @@ function parseJobDescriptionForCriteria(jobDescription) {
       throw new Error('Invalid criteria format in API response');
     }
 
-    criteriaMatches.forEach(match => {
+    criteriaMatches.forEach((match, index) => {
       const titleMatch = match.match(/Titlu: (.*?)\n/);
       const descriptionMatch = match.match(/Descriere: (.*?)$/s);
 
@@ -267,11 +279,18 @@ function parseJobDescriptionForCriteria(jobDescription) {
           title: titleMatch[1].trim(),
           description: descriptionMatch[1].trim()
         });
+        
+        // Log each extracted criterion
+        logToSheet(
+          'Extracted criterion',
+          'DEBUG',
+          `Criterion ${index + 1}: Title="${titleMatch[1].trim()}", Description="${descriptionMatch[1].trim()}"`
+        );
       }
     });
 
-    // Log the extracted criteria for debugging purposes
-    logToSheet('Extracted evaluation criteria', 'DEBUG', JSON.stringify(criteria));
+    // Log the final extracted criteria
+    logToSheet('Extracted evaluation criteria', 'DEBUG', JSON.stringify(criteria, null, 2));
 
     return criteria;
   } catch (error) {
