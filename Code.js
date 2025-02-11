@@ -438,9 +438,36 @@ function processProfiles() {
   const ui = SpreadsheetApp.getUi();
   const sheet = SpreadsheetApp.getActiveSheet();
   const lastRow = sheet.getLastRow();
+
+  // Prompt user for number of records to process
+  const promptResponse = ui.prompt(
+    'Procesare Profile',
+    'Câte profile doriți să procesați?\nIntroduceți un număr sau scrieți "ALL" pentru toate profilele.',
+    ui.ButtonSet.OK_CANCEL
+  );
+
+  if (promptResponse.getSelectedButton() !== ui.Button.OK) {
+    return;
+  }
+
+  const userInput = promptResponse.getResponseText().trim().toUpperCase();
+  let profileLimit;
+
+  if (userInput === 'ALL') {
+    profileLimit = Number.MAX_SAFE_INTEGER; // This will effectively process all records
+    logToSheet('User selected to process ALL profiles', 'INFO');
+  } else {
+    // Convert input to number and validate
+    profileLimit = parseInt(userInput, 10);
+    if (isNaN(profileLimit) || profileLimit <= 0) {
+      ui.alert('Error', 'Vă rugăm să introduceți un număr valid mai mare ca 0 sau "ALL".', ui.ButtonSet.OK);
+      return;
+    }
+    logToSheet(`User selected to process ${profileLimit} profiles`, 'INFO');
+  }
+
   let processedCount = 0;
   let skippedCount = 0;
-  const PROFILE_LIMIT = 5;
 
   // Get Job Description
   const jobDesc = getJobDescription();
@@ -450,13 +477,13 @@ function processProfiles() {
     return;
   }
 
-  logToSheet(`Starting to process profiles. Will process up to ${PROFILE_LIMIT} unprocessed profiles`, 'INFO');
+  logToSheet(`Starting to process profiles. Will process up to ${userInput === 'ALL' ? 'ALL' : profileLimit} unprocessed profiles`, 'INFO');
 
   try {
     for (let row = 2; row <= lastRow; row++) {
       // Check if we've hit the processing limit
-      if (processedCount >= PROFILE_LIMIT) {
-        logToSheet(`Reached processing limit of ${PROFILE_LIMIT} profiles`, 'INFO');
+      if (processedCount >= profileLimit) {
+        logToSheet(`Reached processing limit of ${profileLimit} profiles`, 'INFO');
         break;
       }
 
@@ -464,7 +491,7 @@ function processProfiles() {
         const profileData = extractProfileData(row);
         if (validateProfileData(profileData)) {
           try {
-            logToSheet(`Processing profile at row ${row} (${processedCount + 1}/${PROFILE_LIMIT})`, 'INFO');
+            logToSheet(`Processing profile at row ${row} (${processedCount + 1}/${userInput === 'ALL' ? 'ALL' : profileLimit})`, 'INFO');
             
             const formattedData = formatProfileData(profileData);
             const response = callGeminiAPI(formattedData, jobDesc);
@@ -474,7 +501,7 @@ function processProfiles() {
             processedCount++;
             
             // Add delay between requests
-            if (processedCount < PROFILE_LIMIT) {
+            if (processedCount < profileLimit) {
               Utilities.sleep(2000);
             }
           } catch (error) {
@@ -502,8 +529,16 @@ function processProfiles() {
         skippedCount++;
       }
     }
+
+    // Show completion message
+    const message = userInput === 'ALL' 
+      ? `Procesare completă: ${processedCount} profile procesate, ${skippedCount} profile sărite.`
+      : `Procesare completă: ${processedCount} din ${profileLimit} profile procesate, ${skippedCount} profile sărite.`;
+    ui.alert('Succes', message, ui.ButtonSet.OK);
+
   } catch (error) {
     logToSheet('Processing failed', 'ERROR', error.message);
+    ui.alert('Error', 'A apărut o eroare în timpul procesării: ' + error.message, ui.ButtonSet.OK);
     throw error;
   }
 
